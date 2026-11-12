@@ -8,6 +8,15 @@ LitNexus giúp các nhà nghiên cứu thực hiện **Systematic Literature Rev
 
 ---
 
+## Tài liệu chi tiết (Documentation)
+
+Trước khi bắt tay vào phát triển tính năng mới, bạn có thể đọc bộ tài liệu kiến trúc tại thư mục `docs/`:
+- [01. Tổng quan Kiến trúc & Lược đồ Database (ERD)](docs/01-architecture-overview.md)
+- [02. Chi tiết Tính năng, Thuật toán & Cấu trúc Module](docs/02-features-and-modules.md)
+- [03. Danh sách API & Lộ trình Triển khai (Roadmap)](docs/03-api-and-roadmap.md)
+
+---
+
 ## Kiến trúc công nghệ (Tech Stack)
 
 - **Backend**: Python 3.11+, FastAPI, SQLAlchemy 2.0 (Async), Alembic
