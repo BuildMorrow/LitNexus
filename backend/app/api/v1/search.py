@@ -31,7 +31,13 @@ async def search_and_ingest_papers(
     project: ResearchProject = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ):
-    works = await search_openalex(query=payload.query, limit=payload.limit)
+    works = await search_openalex(
+        query=payload.query,
+        limit=payload.limit,
+        year_from=payload.year_from,
+        year_to=payload.year_to,
+        open_access_only=payload.open_access_only,
+    )
 
     existing_res = await db.execute(
         select(Paper.doi, Paper.openalex_id).where(Paper.project_id == project.id)
@@ -59,6 +65,7 @@ async def search_and_ingest_papers(
             abstract=work.abstract,
             citation_count=work.citation_count,
             pdf_url=work.pdf_url,
+            scopus_quartile=work.scopus_quartile,
         )
         db.add(paper)
         added.append(paper)
