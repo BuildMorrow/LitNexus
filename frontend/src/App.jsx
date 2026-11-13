@@ -114,6 +114,108 @@ export default function App() {
     setPapers([])
   }
 
+  function loadPrototypeDemo() {
+    const demoToken = 'mock-demo-token-for-prototype'
+    localStorage.setItem('litnexus_token', demoToken)
+    setToken(demoToken)
+
+    const demoProject = {
+      id: 'demo-proj-1',
+      title: 'Wearable ECG 1D CNN Arrhythmia Detection',
+      domain: 'Biomedical AI & Wearable Sensors',
+      research_question: 'How do 1D CNNs perform on single-lead wearable ECG compared to 2D spectrogram models?',
+      inclusion_criteria: ['Uses 1D CNN', 'Wearable single-lead ECG', 'Reports F1 or accuracy on public benchmark'],
+      exclusion_criteria: ['Animal studies', '12-lead clinical ECG only', 'Review without empirical experiments'],
+    }
+    setProjects([demoProject])
+    setSelectedProjectId('demo-proj-1')
+
+    setKpiMetrics({
+      total_papers: 35,
+      included_count: 8,
+      excluded_count: 22,
+      uncertain_count: 5,
+      unscreened_count: 0,
+      human_labeled: 6,
+      llm_labeled: 4,
+      active_learning_labeled: 25,
+      automation_rate: 82.86,
+      token_savings_percentage: 71.43,
+      estimated_hours_saved: 7.25,
+    })
+
+    setPapers([
+      {
+        id: 'p1',
+        title: 'Real-Time ECG Arrhythmia Classification Using Lightweight 1D Convolutional Neural Networks',
+        authors: ['Zhang, Wei', 'Smith, John', 'Tan, Le'],
+        journal: 'IEEE Transactions on Biomedical Engineering',
+        year: 2024,
+        scopus_quartile: 'Q1',
+        screening_status: 'uncertain',
+        screening_source: 'none',
+        al_inclusion_prob: 0.52,
+        al_uncertainty_score: 0.96,
+        abstract: 'We present a lightweight 1D CNN architecture tailored for edge computing on wearable single-lead patches, achieving 98.2% F1 on MIT-BIH dataset with only 45k parameters.',
+      },
+      {
+        id: 'p2',
+        title: 'Deep Residual 2D Spectrogram Networks for Multilead Clinical Holter Monitoring',
+        authors: ['Kumar, Rajesh', 'Patel, Anita'],
+        journal: 'Computers in Biology and Medicine',
+        year: 2023,
+        scopus_quartile: 'Q1',
+        screening_status: 'excluded',
+        screening_source: 'active_learning',
+        al_inclusion_prob: 0.08,
+        al_uncertainty_score: 0.16,
+        abstract: 'This study converts 12-lead clinical ECG recordings into 2D STFT spectrogram images and trains a ResNet-50 for hospital intensive care telemetry.',
+      },
+      {
+        id: 'p3',
+        title: 'Ultra-low Power Neural Accelerators for Single-Lead Patch Arrhythmia Screening',
+        authors: ['Nguyen, Nam', 'Le, Duy'],
+        journal: 'IEEE Transactions on Neural Networks and Learning Systems',
+        year: 2024,
+        scopus_quartile: 'Q1',
+        screening_status: 'included',
+        screening_source: 'llm',
+        al_inclusion_prob: 0.91,
+        al_uncertainty_score: 0.18,
+        abstract: 'Demonstrating an ultra-compact 1D convolutional model deployed on ARM Cortex-M4 wearable patches with 97.8% sensitivity under noisy motion artifacts.',
+      },
+    ])
+
+    setMatrixData([
+      {
+        paper_id: 'p1',
+        paper_title: 'Real-Time ECG Arrhythmia Classification Using Lightweight 1D Convolutional Neural Networks',
+        year: 2024,
+        scopus_quartile: 'Q1',
+        claim_id: 'c1',
+        claim_text: 'Lightweight 1D CNN matches 2D ResNet accuracy on wearable single-lead ECG while reducing compute by 14x.',
+        methodology: 'Lightweight 1D-CNN (3 Conv layers, Depthwise Separable)',
+        dataset: 'MIT-BIH Arrhythmia Benchmark (Single-lead Lead II)',
+        metric_summary: 'F1-score = 0.982, Latency = 18ms, Params = 45k',
+        assumptions: ['Stationary baseline noise', 'Segmented R-peaks provided by hardware detector'],
+        evidence_quote: 'Our lightweight 1D CNN architecture achieves 98.2% F1 on MIT-BIH with only 45k parameters, cutting inference latency to 18ms.',
+      },
+      {
+        paper_id: 'p3',
+        paper_title: 'Ultra-low Power Neural Accelerators for Single-Lead Patch Arrhythmia Screening',
+        year: 2024,
+        scopus_quartile: 'Q1',
+        claim_id: 'c2',
+        claim_text: 'Quantized 1D CNN retains 97.8% sensitivity under real-world ambulatory motion artifacts.',
+        methodology: '8-bit Quantized 1D-CNN with Temporal Batch Normalization',
+        dataset: 'In-house Wearable Chest Patch Cohort (N=120 ambulatory patients)',
+        metric_summary: 'Sensitivity = 97.8%, Power = 1.2mW',
+        assumptions: ['Ambulatory motion artifacts present', 'Sampling rate fixed at 250Hz'],
+        evidence_quote: 'The 8-bit quantized 1D model retained 97.8% sensitivity under continuous ambulatory motion with 1.2mW power draw.',
+      },
+    ])
+  }
+
   async function loadProjects() {
     try {
       const list = await apiRequest('/projects')
@@ -361,6 +463,21 @@ export default function App() {
                 {isRegister ? 'Đăng ký Tài khoản' : 'Đăng nhập vào Hệ thống'}
               </button>
             </form>
+
+            {/* Quick Demo Prototype Mode */}
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={loadPrototypeDemo}
+                className="w-full flex items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-950/40 py-2 text-xs font-semibold text-indigo-300 hover:bg-indigo-900/40 transition"
+              >
+                <Sparkles className="h-4 w-4 text-indigo-400" />
+                Vào xem Prototype &bull; Trải nghiệm Dữ liệu Mẫu (Demo Mode)
+              </button>
+              <p className="mt-1.5 text-center text-[11px] text-slate-500">
+                Xem ngay giao diện Active Screening, Ma trận Bằng chứng và KPI mà không cần nạp DB
+              </p>
+            </div>
 
             <div className="mt-6 text-center text-xs text-slate-400">
               {isRegister ? 'Đã có tài khoản?' : 'Chưa có tài khoản nghiên cứu?'}{' '}
