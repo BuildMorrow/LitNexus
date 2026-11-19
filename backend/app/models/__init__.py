@@ -1,5 +1,6 @@
 from app.models.chunk import PaperChunk
 from app.models.conflict import ConflictEdge, EdgeRelationType, PaperClaim, ResearchGap
+from app.models.dataset import AnalysisSession, DatasetProfile, RiskLevel
 from app.models.paper import Paper, ScreeningSource, ScreeningStatus
 from app.models.project import ResearchProject
 from app.models.user import User
@@ -15,4 +16,7 @@ __all__ = [
     "ConflictEdge",
     "EdgeRelationType",
     "ResearchGap",
+    "DatasetProfile",
+    "AnalysisSession",
+    "RiskLevel",
 ]

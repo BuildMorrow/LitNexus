@@ -40,3 +40,6 @@ class ResearchProject(Base):
     research_gaps: Mapped[list["ResearchGap"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    datasets: Mapped[list["DatasetProfile"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
