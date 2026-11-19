@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ShieldCheck,
   FileSpreadsheet,
+  AlertTriangle,
 } from 'lucide-react'
 import { apiRequest } from './services/api'
 
@@ -61,6 +62,24 @@ export default function App() {
   const [matrixData, setMatrixData] = useState([])
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false)
 
+  // Data Analysis Assistant State (Pillar 2)
+  const [datasets, setDatasets] = useState([])
+  const [selectedDatasetId, setSelectedDatasetId] = useState(null)
+  const [csvInput, setCsvInput] = useState(`patient_id,age,wearable_snr,heart_rate,f1_score,noise_level
+p_01,45,18.5,72,0.98,low
+p_02,52,14.2,85,0.94,medium
+p_03,61,9.8,68,0.86,high
+p_04,39,21.0,76,0.99,low
+p_05,71,8.5,92,0.81,high
+p_06,58,16.0,80,0.95,medium
+p_07,64,11.2,74,0.89,medium
+p_08,49,19.3,69,0.97,low`)
+  const [datasetName, setDatasetName] = useState('Wearable_Cohort_Pilot_N8.csv')
+  const [analysisGoal, setAnalysisGoal] = useState('Compare F1 score across low vs high noise levels and evaluate sample power')
+  const [analysisResult, setAnalysisResult] = useState(null)
+  const [isProfiling, setIsProfiling] = useState(false)
+  const [isAdvising, setIsAdvising] = useState(false)
+
   // 1. Initial Health Check
   useEffect(() => {
     apiRequest('/health')
@@ -82,6 +101,8 @@ export default function App() {
       loadKpiMetrics(selectedProjectId)
       if (activeTab === 'matrix') {
         loadComparativeMatrix(selectedProjectId)
+      } else if (activeTab === 'analysis') {
+        loadProjectDatasets(selectedProjectId)
       }
     }
   }, [selectedProjectId, activeTab])
@@ -214,6 +235,84 @@ export default function App() {
         evidence_quote: 'The 8-bit quantized 1D model retained 97.8% sensitivity under continuous ambulatory motion with 1.2mW power draw.',
       },
     ])
+
+    const demoDataset = {
+      id: 'demo-dataset-1',
+      dataset_name: 'Wearable_Cohort_Pilot_N8.csv',
+      row_count: 8,
+      column_count: 6,
+      columns_metadata: [
+        { name: 'patient_id', data_type: 'string', missing_count: 0, missing_ratio: 0.0, unique_count: 8, sample_values: ['p_01', 'p_02'] },
+        { name: 'age', data_type: 'numeric', missing_count: 0, missing_ratio: 0.0, unique_count: 8, sample_values: ['45', '52'] },
+        { name: 'wearable_snr', data_type: 'numeric', missing_count: 0, missing_ratio: 0.0, unique_count: 8, sample_values: ['18.5', '14.2'] },
+        { name: 'heart_rate', data_type: 'numeric', missing_count: 0, missing_ratio: 0.0, unique_count: 8, sample_values: ['72', '85'] },
+        { name: 'f1_score', data_type: 'numeric', missing_count: 0, missing_ratio: 0.0, unique_count: 8, sample_values: ['0.98', '0.94'] },
+        { name: 'noise_level', data_type: 'string', missing_count: 0, missing_ratio: 0.0, unique_count: 3, sample_values: ['low', 'medium', 'high'] },
+      ],
+      missing_value_summary: {},
+      sample_preview: [
+        { patient_id: 'p_01', age: '45', wearable_snr: '18.5', heart_rate: '72', f1_score: '0.98', noise_level: 'low' },
+        { patient_id: 'p_02', age: '52', wearable_snr: '14.2', heart_rate: '85', f1_score: '0.94', noise_level: 'medium' },
+      ],
+    }
+    setDatasets([demoDataset])
+    setSelectedDatasetId('demo-dataset-1')
+
+    setAnalysisResult({
+      risk_level: 'high',
+      analysis_goal: 'Compare F1 score across low vs high noise levels and evaluate sample power',
+      data_limitations: [
+        {
+          warning_type: 'SMALL_SAMPLE_SIZE',
+          severity: 'high',
+          message: 'Sample size N=8 is strictly below statistical threshold (N < 30).',
+          recommendation: 'Do NOT use Student t-test or parametric ANOVA. Apply Mann-Whitney U or Wilcoxon rank-sum test with exact permutation and 95% Bootstrap CI.',
+        },
+      ],
+      recommended_methods: [
+        {
+          method_name: 'Mann-Whitney U Test (Exact Permutation)',
+          category: 'Non-Parametric Hypothesis Testing',
+          rational: 'Robust against non-normality and avoids distributional bias on small pilot cohorts N=8.',
+          assumptions: ['Independent observations', 'Continuous metric scale'],
+          is_recommended: true,
+        },
+        {
+          method_name: 'Bootstrap BCa 95% Confidence Intervals',
+          category: 'Resampling Estimation',
+          rational: 'Provides accurate confidence interval boundaries without assuming normal distribution.',
+          assumptions: ['Random sample'],
+          is_recommended: true,
+        },
+      ],
+      suggested_python_code: `import pandas as pd
+import numpy as np
+from scipy import stats
+
+# Empirical pilot analysis for N=8 wearable sensor data
+df = pd.DataFrame({
+    'f1_score': [0.98, 0.94, 0.86, 0.99, 0.81, 0.95, 0.89, 0.97],
+    'noise': ['low', 'medium', 'high', 'low', 'high', 'medium', 'medium', 'low']
+})
+
+low_noise = df[df['noise'] == 'low']['f1_score']
+high_noise = df[df['noise'] == 'high']['f1_score']
+
+# Crucial Guard: Non-parametric Mann-Whitney U test (N < 30)
+stat, p_val = stats.mannwhitneyu(low_noise, high_noise, alternative='two-sided')
+print(f"Mann-Whitney U statistic: {stat:.2f}, Exact p-value: {p_val:.4f}")
+
+# Bootstrap median difference
+def bootstrap_diff(a, b, n_iter=2000):
+    diffs = [np.median(np.random.choice(a, len(a), replace=True)) - 
+             np.median(np.random.choice(b, len(b), replace=True)) for _ in range(n_iter)]
+    return np.percentile(diffs, [2.5, 97.5])
+
+ci_low, ci_high = bootstrap_diff(low_noise, high_noise)
+print(f"95% Bootstrap CI for median difference: [{ci_low:.3f}, {ci_high:.3f}]")`,
+      interpretation_guide: `Reporting format for IEEE/Nature:
+"Due to the pilot cohort size (N=8), non-parametric analysis was employed. Wearable ECG models in low-noise conditions demonstrated significantly higher F1 scores compared to high-noise environments (Mann-Whitney U=0.0, p=0.038, Bootstrap 95% CI [0.08, 0.17]). However, given the limited sample power, these exploratory findings should be validated on a larger clinical cohort (N >= 50)."`,
+    })
   }
 
   async function loadProjects() {
@@ -277,6 +376,62 @@ export default function App() {
       console.error(err)
     } finally {
       setIsLoadingMatrix(false)
+    }
+  }
+
+  async function loadProjectDatasets(pId) {
+    try {
+      const list = await apiRequest(`/projects/${pId}/analysis/datasets`)
+      setDatasets(list)
+      if (list.length > 0 && !selectedDatasetId) {
+        setSelectedDatasetId(list[0].id)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function handleUploadDataset(e) {
+    e.preventDefault()
+    if (!selectedProjectId) return
+    setIsProfiling(true)
+    try {
+      const res = await apiRequest(`/projects/${selectedProjectId}/analysis/datasets`, {
+        method: 'POST',
+        body: JSON.stringify({
+          dataset_name: datasetName,
+          csv_raw_text: csvInput,
+        }),
+      })
+      setDatasets([res, ...datasets])
+      setSelectedDatasetId(res.id)
+      alert(`Đã nạp và profile thành công dataset: ${res.dataset_name} (${res.row_count} dòng, ${res.column_count} cột)`)
+    } catch (err) {
+      alert('Upload dataset failed: ' + err.message)
+    } finally {
+      setIsProfiling(false)
+    }
+  }
+
+  async function handleGetAnalysisAdvice(e) {
+    e.preventDefault()
+    if (!selectedProjectId || !selectedDatasetId) {
+      alert('Vui lòng chọn hoặc nạp một dataset trước khi phân tích.')
+      return
+    }
+    setIsAdvising(true)
+    try {
+      const res = await apiRequest(`/projects/${selectedProjectId}/analysis/datasets/${selectedDatasetId}/advise`, {
+        method: 'POST',
+        body: JSON.stringify({
+          analysis_goal: analysisGoal,
+        }),
+      })
+      setAnalysisResult(res)
+    } catch (err) {
+      alert('Analysis advise failed: ' + err.message)
+    } finally {
+      setIsAdvising(false)
     }
   }
 
@@ -606,6 +761,17 @@ export default function App() {
               <FileSpreadsheet className="h-4 w-4" />
               2. Bảng Ma trận So sánh Bằng chứng (Comparative Matrix)
             </button>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={`pb-3 transition flex items-center gap-2 ${
+                activeTab === 'analysis'
+                  ? 'border-b-2 border-indigo-500 text-indigo-400 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <BarChart3 className="h-4 w-4 text-emerald-400" />
+              3. Trợ lý Phân Tích Dữ Liệu Sơ Bộ &bull; Cảnh Báo Giới Hạn (Data Analysis Studio)
+            </button>
           </div>
 
           {/* Tab 1: Screening Board */}
@@ -903,6 +1069,222 @@ export default function App() {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab 3: Data Analysis Assistant Studio (Pillar 2) */}
+          {activeTab === 'analysis' && (
+            <div className="space-y-6">
+              {/* Header Banner */}
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Trụ cột 2 &bull; Trợ lý Phân tích Dữ liệu Ban đầu &amp; Sinh Code Tự động</span>
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                      Giải quyết bài toán SV và nghiên cứu viên thiếu kinh nghiệm chọn sai kiểm định thống kê.
+                      Hệ thống tự động phát hiện cỡ mẫu nhỏ ($N &lt; 30$), bất đối xứng dữ liệu, cảnh báo giới hạn nghiêm ngặt và sinh code Python mẫu (Pandas/Scipy).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Left Column: CSV Profile & Ingestion */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-4">
+                    <h4 className="text-sm font-semibold text-white flex items-center justify-between">
+                      <span>1. Dữ liệu Nghiên cứu Thực nghiệm</span>
+                      {datasets.length > 0 && (
+                        <span className="text-[11px] text-slate-400 font-normal">
+                          {datasets.length} dataset sẵn sàng
+                        </span>
+                      )}
+                    </h4>
+
+                    {datasets.length > 0 && (
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1">Chọn Dataset:</label>
+                        <select
+                          value={selectedDatasetId || ''}
+                          onChange={(e) => setSelectedDatasetId(e.target.value)}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                        >
+                          {datasets.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.dataset_name} (N={d.row_count}, {d.column_count} cột)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleUploadDataset} className="space-y-3 pt-1 border-t border-slate-800/80">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">Tên Tệp / Bộ Dữ Liệu</label>
+                        <input
+                          type="text"
+                          required
+                          value={datasetName}
+                          onChange={(e) => setDatasetName(e.target.value)}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white focus:border-indigo-500 focus:outline-none"
+                          placeholder="Pilot_Patient_Data.csv"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Nội dung CSV (Dán văn bản thô hoặc upload)
+                        </label>
+                        <textarea
+                          rows={6}
+                          required
+                          value={csvInput}
+                          onChange={(e) => setCsvInput(e.target.value)}
+                          className="w-full font-mono text-[11px] rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-200 focus:border-indigo-500 focus:outline-none leading-relaxed"
+                          placeholder="col1,col2,col3&#10;val1,val2,val3"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isProfiling}
+                        className="w-full rounded-lg border border-emerald-500/40 bg-emerald-600/20 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 transition disabled:opacity-50"
+                      >
+                        {isProfiling ? 'Đang phân tích schema...' : 'Nạp & Phân Tích Cấu Trúc Dataset'}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Goal Configuration Box */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-3">
+                    <h4 className="text-sm font-semibold text-white">2. Mục tiêu Phân Tích Định Lượng</h4>
+                    <form onSubmit={handleGetAnalysisAdvice} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-300 mb-1">
+                          Câu hỏi thống kê hoặc bài toán cần kiểm định:
+                        </label>
+                        <textarea
+                          rows={3}
+                          required
+                          value={analysisGoal}
+                          onChange={(e) => setAnalysisGoal(e.target.value)}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-xs text-slate-100 focus:border-indigo-500 focus:outline-none"
+                          placeholder="So sánh độ nhạy mô hình giữa nhóm nhiễu thấp vs nhiễu cao..."
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isAdvising}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition disabled:opacity-50"
+                      >
+                        <Bot className="h-4 w-4" />
+                        {isAdvising ? 'Đang tính toán kiểm định...' : 'Gợi Ý Phương Pháp & Sinh Code Phân Tích'}
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Right Column: Statistical Warnings, Recommended Methods & Code */}
+                <div className="lg:col-span-7 space-y-4">
+                  {!analysisResult ? (
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-12 text-center text-xs text-slate-500">
+                      Chưa có kết quả phân tích. Hãy chọn bộ dữ liệu và nhấn &ldquo;Gợi Ý Phương Pháp &amp; Sinh Code Phân Tích&rdquo;.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Crucial Statistical Guard Warnings */}
+                      {analysisResult.data_limitations && analysisResult.data_limitations.length > 0 && (
+                        <div className="space-y-2">
+                          {analysisResult.data_limitations.map((w, idx) => (
+                            <div
+                              key={idx}
+                              className={`rounded-xl border p-4 backdrop-blur ${
+                                w.severity === 'high'
+                                  ? 'border-rose-500/50 bg-rose-950/20 text-rose-200'
+                                  : 'border-amber-500/50 bg-amber-950/20 text-amber-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+                                <AlertTriangle className="h-4 w-4 shrink-0" />
+                                <span>Cảnh Báo Giới Hạn: {w.warning_type} ({w.severity.toUpperCase()})</span>
+                              </div>
+                              <p className="text-xs mt-1.5 font-medium">{w.message}</p>
+                              <p className="text-[11px] opacity-90 mt-1 italic">
+                                &bull; Khuyến nghị an toàn: {w.recommendation}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Recommended Methods */}
+                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-3">
+                        <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                          Phương Pháp Thống Kê / ML Được Đề Xuất
+                        </h4>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {analysisResult.recommended_methods?.map((m, idx) => (
+                            <div key={idx} className="rounded-lg border border-slate-800 bg-slate-950/70 p-3.5 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-xs text-indigo-300">{m.method_name}</span>
+                                <span className="text-[10px] rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-1.5 py-0.5">
+                                  {m.category}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-300 leading-relaxed">{m.rational}</p>
+                              {m.assumptions && m.assumptions.length > 0 && (
+                                <div className="text-[10px] text-slate-500 pt-1">
+                                  Giả định: {m.assumptions.join(' &bull; ')}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Executable Python Code */}
+                      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold text-white">
+                            Code Python Phân Tích Mẫu (Pandas &bull; Scipy &bull; Statsmodels)
+                          </h4>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(analysisResult.suggested_python_code)
+                              alert('Đã sao chép mã nguồn Python vào Clipboard!')
+                            }}
+                            className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-700 transition"
+                          >
+                            Sao chép Code
+                          </button>
+                        </div>
+
+                        <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-indigo-200 leading-relaxed max-h-[360px]">
+                          <code>{analysisResult.suggested_python_code}</code>
+                        </pre>
+                      </div>
+
+                      {/* Academic Interpretation Guide */}
+                      {analysisResult.interpretation_guide && (
+                        <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-2">
+                          <h4 className="text-sm font-semibold text-white">
+                            Hướng Dẫn Diễn Giải Kết Quả (Academic Reporting Style)
+                          </h4>
+                          <div className="rounded-lg border border-slate-800/80 bg-slate-950/60 p-4 text-xs text-slate-300 leading-relaxed whitespace-pre-line italic">
+                            {analysisResult.interpretation_guide}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </main>
