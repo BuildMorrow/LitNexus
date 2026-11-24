@@ -16,6 +16,10 @@ import {
   ShieldCheck,
   FileSpreadsheet,
   AlertTriangle,
+  Network,
+  FileDown,
+  Copy,
+  BookOpen,
 } from 'lucide-react'
 import { apiRequest } from './services/api'
 
@@ -80,6 +84,15 @@ p_08,49,19.3,69,0.97,low`)
   const [isProfiling, setIsProfiling] = useState(false)
   const [isAdvising, setIsAdvising] = useState(false)
 
+  // Conflict Discovery & Graph State (Pillar 1 Stage 2)
+  const [graphData, setGraphData] = useState({ nodes: [], edges: [], research_gaps: [] })
+  const [isLoadingGraph, setIsLoadingGraph] = useState(false)
+  const [isAnalyzingConflicts, setIsAnalyzingConflicts] = useState(false)
+
+  // First Draft Export State
+  const [draftReport, setDraftReport] = useState(null)
+  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false)
+
   // 1. Initial Health Check
   useEffect(() => {
     apiRequest('/health')
@@ -103,6 +116,10 @@ p_08,49,19.3,69,0.97,low`)
         loadComparativeMatrix(selectedProjectId)
       } else if (activeTab === 'analysis') {
         loadProjectDatasets(selectedProjectId)
+      } else if (activeTab === 'conflicts') {
+        loadConflictGraph(selectedProjectId)
+      } else if (activeTab === 'draft') {
+        loadDraftReport(selectedProjectId)
       }
     }
   }, [selectedProjectId, activeTab])
@@ -313,6 +330,119 @@ print(f"95% Bootstrap CI for median difference: [{ci_low:.3f}, {ci_high:.3f}]")`
       interpretation_guide: `Reporting format for IEEE/Nature:
 "Due to the pilot cohort size (N=8), non-parametric analysis was employed. Wearable ECG models in low-noise conditions demonstrated significantly higher F1 scores compared to high-noise environments (Mann-Whitney U=0.0, p=0.038, Bootstrap 95% CI [0.08, 0.17]). However, given the limited sample power, these exploratory findings should be validated on a larger clinical cohort (N >= 50)."`,
     })
+
+    setGraphData({
+      total_nodes: 2,
+      total_edges: 1,
+      contradiction_count: 1,
+      nodes: [
+        {
+          id: 'c1',
+          type: 'claim',
+          label: '[1D-CNN] 1D CNN matches 2D ResNet on wearable single-lead...',
+          paper_title: 'Real-Time ECG Arrhythmia Classification Using Lightweight 1D Convolutional Neural Networks',
+          year: 2024,
+          quartile: 'Q1',
+          details: 'Metric: F1-score = 0.982 | Dataset: MIT-BIH Arrhythmia Benchmark',
+        },
+        {
+          id: 'c2',
+          type: 'claim',
+          label: '[Quantized 1D] Retains 97.8% sensitivity under ambulatory artifacts...',
+          paper_title: 'Ultra-low Power Neural Accelerators for Single-Lead Patch Arrhythmia Screening',
+          year: 2024,
+          quartile: 'Q1',
+          details: 'Metric: Sensitivity = 97.8% | Dataset: In-house Wearable Chest Patch Cohort',
+        },
+      ],
+      edges: [
+        {
+          id: 'e1',
+          source: 'c1',
+          target: 'c2',
+          relation_type: 'contradicts',
+          confidence: 0.88,
+          debate_summary: 'Paper 1 claims high robustness on clean benchmark, while Paper 2 shows that without quantization & temporal batch norm, noise reduces accuracy.',
+          root_cause_hypothesis: 'Differences in motion artifact noise level between benchmark data vs real ambulatory patients.',
+        },
+      ],
+      research_gaps: [
+        {
+          id: 'gap1',
+          title: 'Noise-Adaptive 1D CNN Architectures for Ambulatory Edge ECG',
+          description: 'Current models either assume clean segmented heartbeats or require high power to filter motion artifacts.',
+          suggested_direction: 'Develop dynamic bit-width quantization coupled with temporal SNR attention.',
+          novelty_score: 0.92,
+        },
+      ],
+    })
+
+    setDraftReport({
+      project_id: 'demo-proj-1',
+      project_title: 'Wearable ECG 1D CNN Arrhythmia Detection',
+      total_references: 2,
+      prisma_flow_summary: {
+        identified: 35,
+        screened: 35,
+        excluded: 22,
+        included: 8,
+      },
+      bibtex_content: `@article{Zhang2024,
+  title = {Real-Time ECG Arrhythmia Classification Using Lightweight 1D Convolutional Neural Networks},
+  author = {Zhang, Wei and Smith, John and Tan, Le},
+  journal = {IEEE Transactions on Biomedical Engineering},
+  year = {2024},
+  doi = {10.1109/TBME.2024.123456}
+}
+
+@article{Nguyen2024,
+  title = {Ultra-low Power Neural Accelerators for Single-Lead Patch Arrhythmia Screening},
+  author = {Nguyen, Nam and Le, Duy},
+  journal = {IEEE Transactions on Neural Networks and Learning Systems},
+  year = {2024},
+  doi = {10.1109/TNNLS.2024.789012}
+}`,
+      draft_markdown: `# Systematic Literature Review: Wearable ECG 1D CNN Arrhythmia Detection
+
+## Abstract & Research Questions
+**Core Research Question**: How do lightweight 1D CNNs perform on wearable single-lead ECG compared to 2D models?
+
+This review followed PRISMA 2020 guidelines with Active Learning screening assistance. A total of **35** studies were identified, with **8** core empirical investigations satisfying the inclusion criteria.
+
+---
+
+## 1. Methodology & PRISMA Review Funnel
+- **Total Records Screened**: 35
+- **Records Excluded (Automated & Manual)**: 22
+- **Eligible Studies Included**: 8
+
+---
+
+## 2. Comparative Evidence Matrix
+All empirical assertions below are grounded in verbatim quotes from verified scholarly works:
+
+| Study & Quartile | Methodology | Dataset | Quantitative Metrics | Grounded Evidence Quote |
+|---|---|---|---|---|
+| **Real-Time ECG Arrhythmia Classification...** (2024, Q1) | Lightweight 1D-CNN | MIT-BIH | F1=0.982, Latency=18ms | *"Our lightweight 1D CNN architecture achieves 98.2% F1 on MIT-BIH with only 45k parameters..."* |
+| **Ultra-low Power Neural Accelerators...** (2024, Q1) | 8-bit Quantized 1D-CNN | Ambulatory Patch | Sensitivity=97.8%, Power=1.2mW | *"The 8-bit quantized 1D model retained 97.8% sensitivity under continuous ambulatory motion..."* |
+
+---
+
+## 3. Cross-Paper Dialectical Conflicts & Disagreements
+- **[CONTRADICTS]** (Confidence: 88%)
+  - *Debate Summary*: Paper 1 claims high robustness on clean benchmark, while Paper 2 shows that noise degrades performance without specialized quantization.
+  - *Root Cause Hypothesis*: Differences in motion artifact noise level between benchmark data vs real ambulatory patients.
+
+---
+
+## 4. Synthesized Research Gaps & Proposed Experimental Directions
+### Gap: Noise-Adaptive 1D CNN Architectures for Ambulatory Edge ECG (Novelty Score: 0.92)
+
+**Description**: Current models either assume clean segmented heartbeats or require high power to filter motion artifacts.
+
+**Suggested Direction**: Develop dynamic bit-width quantization coupled with temporal SNR attention.
+`,
+    })
   }
 
   async function loadProjects() {
@@ -388,6 +518,47 @@ print(f"95% Bootstrap CI for median difference: [{ci_low:.3f}, {ci_high:.3f}]")`
       }
     } catch (err) {
       console.error(err)
+    }
+  }
+
+  async function loadConflictGraph(pId) {
+    setIsLoadingGraph(true)
+    try {
+      const data = await apiRequest(`/projects/${pId}/conflicts/graph`)
+      setGraphData(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsLoadingGraph(false)
+    }
+  }
+
+  async function handleRunConflictAnalysis() {
+    if (!selectedProjectId) return
+    setIsAnalyzingConflicts(true)
+    try {
+      await apiRequest(`/projects/${selectedProjectId}/conflicts/analyze`, {
+        method: 'POST',
+      })
+      alert('Đã hoàn thành 3-Agent Conflict Discovery: Bóc tách claims, đối chiếu tranh biện và tổng hợp Research Gaps!')
+      await loadConflictGraph(selectedProjectId)
+      await loadComparativeMatrix(selectedProjectId)
+    } catch (err) {
+      alert('Conflict Analysis failed: ' + err.message)
+    } finally {
+      setIsAnalyzingConflicts(false)
+    }
+  }
+
+  async function loadDraftReport(pId) {
+    setIsGeneratingDraft(true)
+    try {
+      const data = await apiRequest(`/projects/${pId}/conflicts/export-draft`)
+      setDraftReport(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsGeneratingDraft(false)
     }
   }
 
@@ -771,6 +942,28 @@ print(f"95% Bootstrap CI for median difference: [{ci_low:.3f}, {ci_high:.3f}]")`
             >
               <BarChart3 className="h-4 w-4 text-emerald-400" />
               3. Trợ lý Phân Tích Dữ Liệu Sơ Bộ &bull; Cảnh Báo Giới Hạn (Data Analysis Studio)
+            </button>
+            <button
+              onClick={() => setActiveTab('conflicts')}
+              className={`pb-3 transition flex items-center gap-2 ${
+                activeTab === 'conflicts'
+                  ? 'border-b-2 border-rose-500 text-rose-400 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Network className="h-4 w-4 text-rose-400" />
+              4. Đồ thị Mâu thuẫn &amp; Khoảng trống Nghiên cứu (Conflict Graph)
+            </button>
+            <button
+              onClick={() => setActiveTab('draft')}
+              className={`pb-3 transition flex items-center gap-2 ${
+                activeTab === 'draft'
+                  ? 'border-b-2 border-indigo-500 text-indigo-400 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <FileDown className="h-4 w-4 text-cyan-400" />
+              5. Xuất Bản Thảo Đầu Tiên &bull; PRISMA (Draft &amp; BibTeX)
             </button>
           </div>
 
@@ -1285,6 +1478,224 @@ print(f"95% Bootstrap CI for median difference: [{ci_low:.3f}, {ci_high:.3f}]")`
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Tab 4: Cross-Paper Conflict Graph & Gaps */}
+          {activeTab === 'conflicts' && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                    <Network className="h-4 w-4" />
+                    <span>Đấu Trường Tranh Biện Học Thuật &bull; Phát Hiện Mâu Thuẫn Thực Nghiệm &amp; Đề Xuất Đề Tài Mới</span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Hệ thống 3-Agent đối chiếu biện chứng giữa các bài báo cốt lõi (Included) để phân loại các cạnh đối lập
+                    (<span className="text-rose-400 font-medium">Contradicts</span>, <span className="text-amber-400 font-medium">Assumption Mismatch</span>)
+                    và tổng hợp ra Top Khoảng trống nghiên cứu (Research Gaps) có tính mới cao.
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleRunConflictAnalysis}
+                  disabled={isAnalyzingConflicts}
+                  className="shrink-0 flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-rose-600/30 hover:bg-rose-500 transition disabled:opacity-50"
+                >
+                  <Bot className="h-4 w-4" />
+                  {isAnalyzingConflicts ? 'Đang phân tích 3-Agent...' : 'Chạy Phân Tích Mâu Thuẫn 3-Agent'}
+                </button>
+              </div>
+
+              {isLoadingGraph ? (
+                <div className="py-12 text-center text-xs text-slate-500">Đang tải đồ thị tranh biện...</div>
+              ) : graphData.edges?.length === 0 ? (
+                <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-12 text-center text-xs text-slate-500">
+                  Chưa có mâu thuẫn nào được phân tích. Hãy nhấn &ldquo;Chạy Phân Tích Mâu Thuẫn 3-Agent&rdquo; ở trên (yêu cầu ít nhất 2 bài báo Included).
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Graph Overview Summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
+                      <div className="text-xs text-slate-400">Tổng Luận Điểm Đã Bóc Tách</div>
+                      <div className="text-xl font-bold text-white mt-1">{graphData.total_nodes} nodes</div>
+                    </div>
+                    <div className="rounded-xl border border-rose-900/40 bg-rose-950/20 p-4">
+                      <div className="text-xs text-rose-400">Mâu Thuẫn Đối Lập Trực Tiếp</div>
+                      <div className="text-xl font-bold text-rose-300 mt-1">{graphData.contradiction_count} cạnh</div>
+                    </div>
+                    <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-4">
+                      <div className="text-xs text-indigo-400">Tổng Số Cạnh Quan Hệ</div>
+                      <div className="text-xl font-bold text-indigo-300 mt-1">{graphData.total_edges} edges</div>
+                    </div>
+                  </div>
+
+                  {/* Dialectical Edges Cards */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                      <GitCompare className="h-4 w-4 text-rose-400" />
+                      Chi Tiết Các Cặp Luận Điểm Đối Lập &amp; Giả Thuyết Nguyên Nhân Gốc Rễ
+                    </h4>
+
+                    {graphData.edges.map((e, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-3 hover:border-slate-700 transition"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded px-2.5 py-0.5 text-xs font-bold uppercase ${
+                                e.relation_type === 'contradicts'
+                                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                  : e.relation_type === 'assumption_mismatch'
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                              }`}
+                            >
+                              {e.relation_type}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              Độ tin cậy của Agent: <strong className="text-white">{(e.confidence * 100).toFixed(0)}%</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-xs text-slate-200">
+                            <span className="font-semibold text-indigo-300">Tóm tắt cuộc tranh biện:</span> {e.debate_summary}
+                          </div>
+                          {e.root_cause_hypothesis && (
+                            <div className="text-xs text-amber-200/90 rounded-lg bg-amber-950/20 border border-amber-500/20 p-3 italic">
+                              <span className="font-semibold not-italic">Nguyên nhân gốc rễ (Root Cause Hypothesis):</span> {e.root_cause_hypothesis}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Research Gaps Matrix */}
+                  {graphData.research_gaps && graphData.research_gaps.length > 0 && (
+                    <div className="space-y-3 pt-4">
+                      <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-indigo-400" />
+                        Top Khoảng Trống Nghiên Cứu Đề Xuất (Novelty Ranked Research Gaps)
+                      </h4>
+
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {graphData.research_gaps.map((gap, idx) => (
+                          <div
+                            key={idx}
+                            className="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-indigo-950/30 to-slate-900/60 p-5 space-y-3"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h5 className="text-sm font-bold text-white">{gap.title}</h5>
+                              <span className="shrink-0 rounded-full bg-indigo-500/20 border border-indigo-500/40 px-2.5 py-0.5 text-[11px] font-bold text-indigo-300">
+                                Novelty: {gap.novelty_score?.toFixed(2)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-300 leading-relaxed">{gap.description}</p>
+                            <div className="rounded-lg bg-slate-950/60 p-3 text-[11px] text-emerald-300 border border-emerald-500/20">
+                              <span className="font-semibold">Hướng thực nghiệm gợi ý:</span> {gap.suggested_direction}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 5: Academic First Draft & PRISMA Export */}
+          {activeTab === 'draft' && (
+            <div className="space-y-6">
+              <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm">
+                    <FileDown className="h-4 w-4" />
+                    <span>Xuất Bản Thảo Bài Báo Đầu Tiên (First Draft Manuscript) &amp; Trích Dẫn BibTeX Chuẩn PRISMA</span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Tự động kết hợp dữ liệu từ phễu sàng lọc Active Learning, ma trận bằng chứng không bịa nguồn,
+                    đối thoại tranh biện đa agent và trích dẫn BibTeX chuẩn xác để ra ngay bản dự thảo đầu tiên.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (draftReport?.draft_markdown) {
+                        navigator.clipboard.writeText(draftReport.draft_markdown)
+                        alert('Đã sao chép toàn bộ bản thảo Markdown vào Clipboard!')
+                      }
+                    }}
+                    disabled={!draftReport}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700 transition disabled:opacity-50"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copy Markdown
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (draftReport?.bibtex_content) {
+                        navigator.clipboard.writeText(draftReport.bibtex_content)
+                        alert('Đã sao chép trích dẫn BibTeX vào Clipboard!')
+                      }
+                    }}
+                    disabled={!draftReport}
+                    className="flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-600/20 px-3 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition disabled:opacity-50"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    Copy BibTeX
+                  </button>
+                </div>
+              </div>
+
+              {isGeneratingDraft ? (
+                <div className="py-12 text-center text-xs text-slate-500">Đang tổng hợp bản thảo bài báo...</div>
+              ) : !draftReport ? (
+                <div className="rounded-xl border border-slate-800 bg-slate-900/30 p-12 text-center text-xs text-slate-500">
+                  Chưa có bản thảo bài báo. Hãy đảm bảo project có bài báo và thử lại.
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* PRISMA 2020 Flow Summary Banner */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-3">
+                    <h4 className="text-sm font-semibold text-white">Sơ đồ Dòng Chảy PRISMA 2020 (Flow Summary)</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                      <div className="rounded-lg bg-slate-950 p-3 border border-slate-800">
+                        <div className="text-[11px] text-slate-400">1. Identified</div>
+                        <div className="text-lg font-bold text-white mt-1">{draftReport.prisma_flow_summary.identified}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-950 p-3 border border-slate-800">
+                        <div className="text-[11px] text-slate-400">2. Screened</div>
+                        <div className="text-lg font-bold text-white mt-1">{draftReport.prisma_flow_summary.screened}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-950 p-3 border border-slate-800">
+                        <div className="text-[11px] text-rose-400">3. Excluded</div>
+                        <div className="text-lg font-bold text-rose-300 mt-1">{draftReport.prisma_flow_summary.excluded}</div>
+                      </div>
+                      <div className="rounded-lg bg-slate-950 p-3 border border-emerald-900/40">
+                        <div className="text-[11px] text-emerald-400">4. Included Core Studies</div>
+                        <div className="text-lg font-bold text-emerald-300 mt-1">{draftReport.prisma_flow_summary.included}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rendered Draft Preview */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
+                    <h4 className="text-sm font-semibold text-white">Nội Dung Bản Dự Thảo Đầu Tiên (DRAFT_PAPER.md)</h4>
+                    <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-5 font-mono text-xs text-slate-200 leading-relaxed whitespace-pre-wrap max-h-[600px]">
+                      {draftReport.draft_markdown}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
