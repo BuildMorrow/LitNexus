@@ -33,6 +33,44 @@ class ConflictAnalysisOut(BaseModel):
     research_gaps: list[ResearchGapOut]
 
 
+class ConflictGraphNode(BaseModel):
+    id: str
+    type: str  # "paper" or "claim"
+    label: str
+    paper_title: str
+    year: int | None = None
+    quartile: str | None = None
+    details: str | None = None
+
+
+class ConflictGraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    relation_type: EdgeRelationType
+    confidence: float
+    debate_summary: str
+    root_cause_hypothesis: str | None = None
+
+
+class ConflictGraphResponse(BaseModel):
+    total_nodes: int
+    total_edges: int
+    contradiction_count: int
+    nodes: list[ConflictGraphNode]
+    edges: list[ConflictGraphEdge]
+    research_gaps: list[ResearchGapOut]
+
+
+class DraftReportResponse(BaseModel):
+    project_id: uuid.UUID
+    project_title: str
+    draft_markdown: str
+    bibtex_content: str
+    prisma_flow_summary: dict
+    total_references: int
+
+
 class ComparativeMatrixItem(BaseModel):
     paper_id: uuid.UUID
     paper_title: str
