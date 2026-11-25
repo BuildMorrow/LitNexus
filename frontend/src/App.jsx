@@ -20,6 +20,7 @@ import {
   FileDown,
   Copy,
   BookOpen,
+  FileText,
 } from 'lucide-react'
 import { apiRequest } from './services/api'
 
@@ -65,6 +66,7 @@ export default function App() {
   const [kpiMetrics, setKpiMetrics] = useState(null)
   const [matrixData, setMatrixData] = useState([])
   const [isLoadingMatrix, setIsLoadingMatrix] = useState(false)
+  const [ingestingPaperId, setIngestingPaperId] = useState(null)
 
   // Data Analysis Assistant State (Pillar 2)
   const [datasets, setDatasets] = useState([])
@@ -237,6 +239,8 @@ p_08,49,19.3,69,0.97,low`)
         metric_summary: 'F1-score = 0.982, Latency = 18ms, Params = 45k',
         assumptions: ['Stationary baseline noise', 'Segmented R-peaks provided by hardware detector'],
         evidence_quote: 'Our lightweight 1D CNN architecture achieves 98.2% F1 on MIT-BIH with only 45k parameters, cutting inference latency to 18ms.',
+        page_number: 1,
+        section_title: '3. Experimental Results',
       },
       {
         paper_id: 'p3',
@@ -250,6 +254,8 @@ p_08,49,19.3,69,0.97,low`)
         metric_summary: 'Sensitivity = 97.8%, Power = 1.2mW',
         assumptions: ['Ambulatory motion artifacts present', 'Sampling rate fixed at 250Hz'],
         evidence_quote: 'The 8-bit quantized 1D model retained 97.8% sensitivity under continuous ambulatory motion with 1.2mW power draw.',
+        page_number: 4,
+        section_title: 'Methodology & Benchmarks',
       },
     ])
 
@@ -642,6 +648,40 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
       loadKpiMetrics(selectedProjectId)
     } catch (err) {
       alert('Failed to label paper: ' + err.message)
+    }
+  }
+
+  async function handleIngestPdf(paper) {
+    if (!paper) return
+    let pdfUrl = paper.pdf_url
+    if (!pdfUrl) {
+      pdfUrl = window.prompt(
+        'Nhập URL file PDF trực tuyến (Open Access / arXiv) để trích xuất toàn văn có neo trang:',
+        'https://arxiv.org/pdf/2401.00001.pdf'
+      )
+      if (!pdfUrl) return
+    }
+    setIngestingPaperId(paper.id)
+    try {
+      if (token === 'mock-demo-token-for-prototype') {
+        await new Promise((res) => setTimeout(res, 800))
+        alert(
+          `[Demo Mode] Đã trích xuất thành công toàn văn PDF của "${paper.title}"!\nTổng số trang: 6, Phân đoạn semantic: 14 chunks có neo số trang (evidence grounded).`
+        )
+        return
+      }
+      const res = await apiRequest(`/projects/${selectedProjectId}/papers/${paper.id}/ingest-pdf`, {
+        method: 'POST',
+        body: JSON.stringify({ pdf_url: pdfUrl }),
+      })
+      alert(
+        `Đã trích xuất toàn văn PDF thành công!\nTổng số trang: ${res.total_pages}\nSố phân đoạn chunks neo trang: ${res.total_chunks}`
+      )
+      loadProjectPapers(selectedProjectId)
+    } catch (err) {
+      alert('Lỗi nạp PDF: ' + err.message)
+    } finally {
+      setIngestingPaperId(null)
     }
   }
 
@@ -1165,7 +1205,7 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
                               )}
                             </div>
 
-                            {/* 1-Click Human-in-the-Loop Labeling Actions */}
+                            {/* 1-Click Human-in-the-Loop Labeling & PDF Ingestion Actions */}
                             <div className="flex sm:flex-col items-center gap-2 shrink-0">
                               <button
                                 onClick={() => handleLabelPaper(paper.id, 'included')}
@@ -1180,6 +1220,15 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
                               >
                                 <XCircle className="h-3.5 w-3.5" />
                                 Exclude
+                              </button>
+                              <button
+                                onClick={() => handleIngestPdf(paper)}
+                                disabled={ingestingPaperId === paper.id}
+                                className="w-24 rounded-lg border border-indigo-500/40 bg-indigo-600/10 px-2 py-1.5 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-600/20 transition flex items-center justify-center gap-1 disabled:opacity-50"
+                                title="Bóc tách PDF toàn văn và phân đoạn semantic neo số trang"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                                {ingestingPaperId === paper.id ? 'Đang nạp...' : 'Nạp PDF'}
                               </button>
                             </div>
                           </div>
@@ -1253,8 +1302,23 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
                               ? row.assumptions.join(', ')
                               : 'None'}
                           </td>
-                          <td className="px-4 py-3 italic text-amber-200/90 bg-amber-950/10 max-w-[250px] border-l border-amber-500/20">
-                            &ldquo;{row.evidence_quote}&rdquo;
+                          <td className="px-4 py-3 text-amber-200/90 bg-amber-950/10 max-w-[280px] border-l border-amber-500/20">
+                            <div className="italic">&ldquo;{row.evidence_quote}&rdquo;</div>
+                            {(row.page_number || row.section_title) && (
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5 not-italic">
+                                {row.page_number && (
+                                  <span className="inline-flex items-center gap-1 rounded bg-indigo-500/20 border border-indigo-500/40 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-300">
+                                    <FileText className="h-2.5 w-2.5" />
+                                    Trang p.{row.page_number}
+                                  </span>
+                                )}
+                                {row.section_title && (
+                                  <span className="inline-flex items-center rounded bg-slate-800 border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300 font-medium">
+                                    {row.section_title}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
