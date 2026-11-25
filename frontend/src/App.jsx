@@ -94,6 +94,7 @@ p_08,49,19.3,69,0.97,low`)
   // First Draft Export State
   const [draftReport, setDraftReport] = useState(null)
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false)
+  const [draftFormat, setDraftFormat] = useState('md') // 'md' | 'tex' | 'qmd' | 'bib'
 
   // 1. Initial Health Check
   useEffect(() => {
@@ -448,6 +449,101 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
 
 **Suggested Direction**: Develop dynamic bit-width quantization coupled with temporal SNR attention.
 `,
+      latex_content: `\\documentclass[11pt,a4paper]{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{booktabs}
+\\usepackage{geometry}
+\\geometry{margin=1in}
+\\usepackage{hyperref}
+\\usepackage{cite}
+
+\\title{Systematic Literature Review: Wearable ECG 1D CNN Arrhythmia Detection}
+\\author{LitNexus SLR Research Engine}
+\\date{\\today}
+
+\\begin{document}
+\\maketitle
+
+\\begin{abstract}
+\\textbf{Research Question:} How do lightweight 1D CNNs perform on wearable single-lead ECG compared to 2D models?
+
+This Systematic Literature Review synthesizes empirical findings across 8 included papers selected from 35 candidate publications screened using Active Learning.
+\\end{abstract}
+
+\\section{PRISMA 2020 Review Flow}
+\\begin{itemize}
+  \\item \\textbf{Total Records Screened:} 35
+  \\item \\textbf{Records Excluded:} 22
+  \\item \\textbf{Eligible Studies Included:} 8
+\\end{itemize}
+
+\\section{Comparative Evidence Matrix}
+\\begin{table}[htbp]
+\\centering
+\\small
+\\caption{Empirical Methodologies, Quantitative Metrics, and Grounded Evidence}
+\\begin{tabular}{p{4cm}p{3.5cm}p{3.5cm}p{2cm}}
+\\toprule
+\\textbf{Study} & \\textbf{Methodology} & \\textbf{Metrics} & \\textbf{Location} \\\\
+\\midrule
+Real-Time ECG Arrhythmia & Lightweight 1D-CNN & F1=0.982, Latency=18ms & p.1 (Results) \\\\
+Ultra-low Power Neural Accelerators & 8-bit Quantized 1D-CNN & Sensitivity=97.8\\% & p.4 (Method) \\\\
+\\bottomrule
+\\end{tabular}
+\\end{table}
+
+\\section{Cross-Paper Contradictions \\& Synthesized Gaps}
+The automated dialectical debate engine identified 1 relational conflict edge and synthesized 1 high-novelty research opportunity.
+
+\\bibliographystyle{IEEEtran}
+\\bibliography{references}
+
+\\end{document}
+`,
+      quarto_content: `---
+title: "Systematic Literature Review: Wearable ECG 1D CNN Arrhythmia Detection"
+subtitle: "Active Learning PRISMA Synthesis with Evidence Grounding"
+author: "LitNexus Research Suite"
+date: today
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: true
+  pdf:
+    toc: true
+    number-sections: true
+bibliography: references.bib
+---
+
+# Abstract & Core Question
+**Research Question:** How do lightweight 1D CNNs perform on wearable single-lead ECG compared to 2D models?
+
+A total of **35** records were screened using Active Learning, yielding **8** core empirical investigations satisfying the inclusion criteria.
+
+## PRISMA 2020 Review Flow
+- **Total Records Screened:** 35
+- **Records Excluded:** 22
+- **Eligible Studies Included:** 8
+
+## Comparative Evidence Matrix
+| Study & Quartile | Methodology | Dataset | Quantitative Metrics | Grounded Evidence Quote |
+|---|---|---|---|---|
+| **Real-Time ECG Arrhythmia...** (2024, Q1) | Lightweight 1D-CNN | MIT-BIH | F1=0.982, Latency=18ms | *"Our lightweight 1D CNN architecture achieves 98.2% F1 on MIT-BIH with only 45k parameters..."* |
+| **Ultra-low Power Neural Accelerators...** (2024, Q1) | 8-bit Quantized 1D-CNN | Ambulatory Patch | Sensitivity=97.8%, Power=1.2mW | *"The 8-bit quantized 1D model retained 97.8% sensitivity under continuous ambulatory motion..."* |
+
+## Dialectical Conflicts & Disagreements
+- **[CONTRADICTS]** (Confidence: 88%)
+  - *Debate Summary*: Paper 1 claims high robustness on clean benchmark, while Paper 2 shows that noise degrades performance without specialized quantization.
+  - *Root Cause Hypothesis*: Differences in motion artifact noise level between benchmark data vs real ambulatory patients.
+
+## Synthesized Research Gaps
+### Gap: Noise-Adaptive 1D CNN Architectures for Ambulatory Edge ECG (Novelty Score: 0.92)
+
+**Description**: Current models either assume clean segmented heartbeats or require high power to filter motion artifacts.
+
+**Suggested Direction**: Develop dynamic bit-width quantization coupled with temporal SNR attention.
+`,
     })
   }
 
@@ -566,6 +662,37 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
     } finally {
       setIsGeneratingDraft(false)
     }
+  }
+
+  function downloadDraftFile(format) {
+    if (!draftReport) return
+    let content = draftReport.draft_markdown
+    let filename = 'DRAFT_PAPER.md'
+    let mimeType = 'text/markdown'
+
+    if (format === 'tex') {
+      content = draftReport.latex_content || ''
+      filename = 'paper_slr.tex'
+      mimeType = 'application/x-tex'
+    } else if (format === 'qmd') {
+      content = draftReport.quarto_content || ''
+      filename = 'review_report.qmd'
+      mimeType = 'text/plain'
+    } else if (format === 'bib') {
+      content = draftReport.bibtex_content || ''
+      filename = 'references.bib'
+      mimeType = 'application/x-bibtex'
+    }
+
+    const blob = new Blob([content], { type: mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   async function handleUploadDataset(e) {
@@ -1689,33 +1816,75 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex rounded-lg bg-slate-950 p-1 border border-slate-800">
+                    <button
+                      onClick={() => setDraftFormat('md')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                        draftFormat === 'md'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Markdown (.md)
+                    </button>
+                    <button
+                      onClick={() => setDraftFormat('tex')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                        draftFormat === 'tex'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      LaTeX (.tex)
+                    </button>
+                    <button
+                      onClick={() => setDraftFormat('qmd')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                        draftFormat === 'qmd'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Quarto (.qmd)
+                    </button>
+                    <button
+                      onClick={() => setDraftFormat('bib')}
+                      className={`px-2.5 py-1 text-xs font-semibold rounded-md transition ${
+                        draftFormat === 'bib'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      BibTeX (.bib)
+                    </button>
+                  </div>
+
                   <button
                     onClick={() => {
-                      if (draftReport?.draft_markdown) {
-                        navigator.clipboard.writeText(draftReport.draft_markdown)
-                        alert('Đã sao chép toàn bộ bản thảo Markdown vào Clipboard!')
+                      let text = draftReport?.draft_markdown
+                      if (draftFormat === 'tex') text = draftReport?.latex_content
+                      else if (draftFormat === 'qmd') text = draftReport?.quarto_content
+                      else if (draftFormat === 'bib') text = draftReport?.bibtex_content
+                      if (text) {
+                        navigator.clipboard.writeText(text)
+                        alert(`Đã sao chép nội dung ${draftFormat.toUpperCase()} vào Clipboard!`)
                       }
                     }}
                     disabled={!draftReport}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-700 transition disabled:opacity-50"
                   >
                     <Copy className="h-4 w-4" />
-                    Copy Markdown
+                    Copy
                   </button>
 
                   <button
-                    onClick={() => {
-                      if (draftReport?.bibtex_content) {
-                        navigator.clipboard.writeText(draftReport.bibtex_content)
-                        alert('Đã sao chép trích dẫn BibTeX vào Clipboard!')
-                      }
-                    }}
+                    onClick={() => downloadDraftFile(draftFormat)}
                     disabled={!draftReport}
-                    className="flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-600/20 px-3 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-600/20 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-600/30 transition disabled:opacity-50"
                   >
-                    <BookOpen className="h-4 w-4" />
-                    Copy BibTeX
+                    <FileDown className="h-4 w-4" />
+                    Tải File {draftFormat.toUpperCase()}
                   </button>
                 </div>
               </div>
@@ -1753,9 +1922,25 @@ All empirical assertions below are grounded in verbatim quotes from verified sch
 
                   {/* Rendered Draft Preview */}
                   <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-6 space-y-4">
-                    <h4 className="text-sm font-semibold text-white">Nội Dung Bản Dự Thảo Đầu Tiên (DRAFT_PAPER.md)</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-semibold text-white">
+                        {draftFormat === 'md' && 'Nội Dung Bản Dự Thảo Đầu Tiên (DRAFT_PAPER.md)'}
+                        {draftFormat === 'tex' && 'Mã Nguồn LaTeX Bài Báo Khoa Học (paper_slr.tex)'}
+                        {draftFormat === 'qmd' && 'Bản Báo Cáo Nghiên Cứu Đa Định Dạng Quarto (review_report.qmd)'}
+                        {draftFormat === 'bib' && 'Trích Dẫn Học Thuật Chuẩn Hóa (references.bib)'}
+                      </h4>
+                      <span className="text-[11px] text-slate-400 font-mono">
+                        {draftFormat === 'md' && 'Markdown format'}
+                        {draftFormat === 'tex' && 'LaTeX article class'}
+                        {draftFormat === 'qmd' && 'Quarto reproducible document'}
+                        {draftFormat === 'bib' && 'BibTeX bibliography'}
+                      </span>
+                    </div>
                     <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-5 font-mono text-xs text-slate-200 leading-relaxed whitespace-pre-wrap max-h-[600px]">
-                      {draftReport.draft_markdown}
+                      {draftFormat === 'md' && draftReport.draft_markdown}
+                      {draftFormat === 'tex' && (draftReport.latex_content || 'Chưa có bản xuất LaTeX.')}
+                      {draftFormat === 'qmd' && (draftReport.quarto_content || 'Chưa có bản xuất Quarto.')}
+                      {draftFormat === 'bib' && draftReport.bibtex_content}
                     </pre>
                   </div>
                 </div>

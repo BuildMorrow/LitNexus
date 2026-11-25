@@ -155,3 +155,7 @@ async def test_export_first_draft_report_generates_markdown_and_bibtex():
     assert "Our model achieves 98.2% F1 on single-lead patches." in draft_res.draft_markdown
     assert draft_res.prisma_flow_summary["included"] == 1
     assert draft_res.prisma_flow_summary["excluded"] == 1
+    assert "\\documentclass" in draft_res.latex_content
+    assert "\\bibliography{references}" in draft_res.latex_content
+    assert "format:" in draft_res.quarto_content
+    assert "bibliography: references.bib" in draft_res.quarto_content

@@ -395,21 +395,48 @@ async def export_first_draft_report(
 
     bibtex_content = "\n\n".join(bibtex_lines)
 
-    # Build Comparative Table Markdown
+    # Build Comparative Table Markdown & LaTeX table
     table_rows: list[str] = []
+    latex_table_rows: list[str] = []
     for claim, paper in claims_rows:
+        citation_pin = (
+            f"p.{claim.page_number} ({claim.section_title})"
+            if claim.page_number
+            else (claim.section_title or "Full-text")
+        )
         row = (
             f"| **{paper.title}** ({paper.year or 'N/A'}, {paper.scopus_quartile or 'N/A'}) "
             f"| {claim.methodology or 'N/A'} "
             f"| {claim.dataset or 'N/A'} "
             f"| {claim.metric_summary or 'N/A'} "
+            f"| {citation_pin} "
             f'| *"{claim.evidence_quote}"* |'
         )
         table_rows.append(row)
 
+        clean_title = (
+            paper.title.replace("_", "\\_").replace("%", "\\%").replace("&", "\\&")[:40]
+        )
+        clean_meth = (
+            (claim.methodology or "N/A")
+            .replace("_", "\\_")
+            .replace("%", "\\%")
+            .replace("&", "\\&")[:30]
+        )
+        clean_metrics = (
+            (claim.metric_summary or "N/A")
+            .replace("_", "\\_")
+            .replace("%", "\\%")
+            .replace("&", "\\&")[:30]
+        )
+        clean_pin = citation_pin.replace("_", "\\_")
+        latex_table_rows.append(
+            f"{clean_title} & {clean_meth} & {clean_metrics} & {clean_pin} \\\\"
+        )
+
     table_markdown = (
-        "| Study & Quartile | Methodology | Dataset | Quantitative Metrics | Grounded Evidence Quote |\n"
-        "|---|---|---|---|---|\n" + "\n".join(table_rows)
+        "| Study & Quartile | Methodology | Dataset | Quantitative Metrics | Page/Section Pin | Grounded Evidence Quote |\n"
+        "|---|---|---|---|---|---|\n" + "\n".join(table_rows)
         if table_rows
         else "*No claims extracted yet.*"
     )
@@ -492,11 +519,112 @@ Based on the identified empirical contradictions, the following high-novelty res
 ```
 """
 
+    # Generate LaTeX Document
+    latex_table_body = (
+        "\n".join(latex_table_rows)
+        if latex_table_rows
+        else "No empirical claims extracted & - & - & - \\\\"
+    )
+    latex_content = f"""\\documentclass[11pt,a4paper]{{article}}
+\\usepackage[utf8]{{inputenc}}
+\\usepackage{{booktabs}}
+\\usepackage{{geometry}}
+\\geometry{{margin=1in}}
+\\usepackage{{hyperref}}
+\\usepackage{{cite}}
+
+\\title{{Systematic Literature Review: {project.title}}}
+\\author{{LitNexus Academic SLR Engine}}
+\\date{{\\today}}
+
+\\begin{{document}}
+\\maketitle
+
+\\begin{{abstract}}
+\\textbf{{Research Question:}} {project.research_question}
+
+This Systematic Literature Review synthesizes empirical findings across {len(included_papers)} included papers selected from {len(all_papers)} candidate publications screened using Active Learning.
+\\end{{abstract}}
+
+\\section{{PRISMA 2020 Review Flow}}
+\\begin{{itemize}}
+  \\item \\textbf{{Total Records Screened:}} {prisma_flow["identified"]}
+  \\item \\textbf{{Records Excluded:}} {prisma_flow["excluded"]}
+  \\item \\textbf{{Eligible Studies Included:}} {prisma_flow["included"]}
+\\end{{itemize}}
+
+\\section{{Comparative Evidence Matrix}}
+\\begin{{table}}[htbp]
+\\centering
+\\small
+\\caption{{Empirical Methodologies, Quantitative Metrics, and Grounded Evidence}}
+\\begin{{tabular}}{{p{{4cm}}p{{3.5cm}}p{{3.5cm}}p{{2cm}}}}
+\\toprule
+\\textbf{{Study}} & \\textbf{{Methodology}} & \\textbf{{Metrics}} & \\textbf{{Location}} \\\\
+\\midrule
+{latex_table_body}
+\\bottomrule
+\\end{{tabular}}
+\\end{{table}}
+
+\\section{{Cross-Paper Contradictions & Synthesized Gaps}}
+The automated dialectical debate engine identified {len(edges)} relational conflict edges and synthesized {len(gaps)} research opportunities.
+
+\\bibliographystyle{{IEEEtran}}
+\\bibliography{{references}}
+
+\\end{{document}}
+"""
+
+    # Generate Quarto Markdown (.qmd) Document
+    quarto_content = f"""---
+title: "Systematic Literature Review: {project.title}"
+subtitle: "Active Learning PRISMA Synthesis with Evidence Grounding"
+author: "LitNexus Research Suite"
+date: today
+format:
+  html:
+    toc: true
+    number-sections: true
+    code-fold: true
+  pdf:
+    toc: true
+    number-sections: true
+bibliography: references.bib
+---
+
+# Abstract & Core Inquiry
+**Research Question:** {project.research_question}
+
+A total of **{len(all_papers)}** records were screened using Active Learning, yielding **{len(included_papers)}** core empirical investigations satisfying the inclusion criteria.
+
+## PRISMA 2020 Review Flow
+- **Total Records Screened:** {prisma_flow["identified"]}
+- **Records Excluded:** {prisma_flow["excluded"]}
+- **Eligible Studies Included:** {prisma_flow["included"]}
+
+## Comparative Evidence Matrix
+{table_markdown}
+
+## Dialectical Conflicts & Disagreements
+{conflicts_markdown}
+
+## Synthesized Research Gaps
+{gaps_markdown}
+
+## References
+```bibtex
+{bibtex_content}
+```
+"""
+
     return DraftReportResponse(
         project_id=project.id,
         project_title=project.title,
         draft_markdown=draft_markdown,
         bibtex_content=bibtex_content,
+        latex_content=latex_content,
+        quarto_content=quarto_content,
         prisma_flow_summary=prisma_flow,
         total_references=len(included_papers),
     )
