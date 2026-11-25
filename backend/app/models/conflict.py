@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,9 +21,7 @@ class PaperClaim(Base):
 
     __tablename__ = "paper_claims"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     paper_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("papers.id", ondelete="CASCADE"), index=True
     )
@@ -34,6 +32,8 @@ class PaperClaim(Base):
     metric_summary: Mapped[str | None] = mapped_column(String(255))
     assumptions: Mapped[list] = mapped_column(JSONB, default=list)
     evidence_quote: Mapped[str | None] = mapped_column(Text)
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    section_title: Mapped[str | None] = mapped_column(String(255))
 
     paper: Mapped["Paper"] = relationship(back_populates="claims")
 
@@ -43,9 +43,7 @@ class ConflictEdge(Base):
 
     __tablename__ = "conflict_edges"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("research_projects.id", ondelete="CASCADE"),
@@ -73,9 +71,7 @@ class ResearchGap(Base):
 
     __tablename__ = "research_gaps"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("research_projects.id", ondelete="CASCADE"),
@@ -87,7 +83,7 @@ class ResearchGap(Base):
     suggested_direction: Mapped[str | None] = mapped_column(Text)
     novelty_score: Mapped[float] = mapped_column(Float, default=0.0)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     project: Mapped["ResearchProject"] = relationship(back_populates="research_gaps")

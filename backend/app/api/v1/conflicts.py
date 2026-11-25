@@ -34,12 +34,8 @@ async def get_conflict_analysis(
     project: ResearchProject = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ):
-    edges_res = await db.execute(
-        select(ConflictEdge).where(ConflictEdge.project_id == project.id)
-    )
-    gaps_res = await db.execute(
-        select(ResearchGap).where(ResearchGap.project_id == project.id)
-    )
+    edges_res = await db.execute(select(ConflictEdge).where(ConflictEdge.project_id == project.id))
+    gaps_res = await db.execute(select(ResearchGap).where(ResearchGap.project_id == project.id))
     return ConflictAnalysisOut(
         claims_extracted=0,
         edges_discovered=list(edges_res.scalars().all()),
@@ -81,6 +77,8 @@ async def run_conflict_discovery(
                 metric_summary=c.metric_summary,
                 assumptions=c.assumptions,
                 evidence_quote=c.evidence_quote,
+                page_number=c.page_number,
+                section_title=c.section_title,
             )
             db.add(db_claim)
             await db.flush()
@@ -181,6 +179,8 @@ async def get_comparative_matrix(
             metric_summary=claim.metric_summary,
             assumptions=claim.assumptions or [],
             evidence_quote=claim.evidence_quote,
+            page_number=claim.page_number,
+            section_title=claim.section_title,
         )
         for claim, paper in rows
     ]
@@ -270,14 +270,10 @@ async def get_conflict_graph(
     Nodes: Included Papers and Claims
     Edges: Contradictions, Supports, Refinements, and Assumption Mismatches
     """
-    edges_res = await db.execute(
-        select(ConflictEdge).where(ConflictEdge.project_id == project.id)
-    )
+    edges_res = await db.execute(select(ConflictEdge).where(ConflictEdge.project_id == project.id))
     edges = list(edges_res.scalars().all())
 
-    gaps_res = await db.execute(
-        select(ResearchGap).where(ResearchGap.project_id == project.id)
-    )
+    gaps_res = await db.execute(select(ResearchGap).where(ResearchGap.project_id == project.id))
     gaps = list(gaps_res.scalars().all())
 
     claims_res = await db.execute(
@@ -344,9 +340,7 @@ async def export_first_draft_report(
     Generate an academic first draft (DRAFT_PAPER.md) and standardized BibTeX citations
     following PRISMA 2020 guidelines with 100% zero-hallucination evidence quotes.
     """
-    papers_res = await db.execute(
-        select(Paper).where(Paper.project_id == project.id)
-    )
+    papers_res = await db.execute(select(Paper).where(Paper.project_id == project.id))
     all_papers = list(papers_res.scalars().all())
 
     included_papers = [p for p in all_papers if p.screening_status == ScreeningStatus.included]
@@ -362,14 +356,10 @@ async def export_first_draft_report(
     )
     claims_rows = claims_res.all()
 
-    edges_res = await db.execute(
-        select(ConflictEdge).where(ConflictEdge.project_id == project.id)
-    )
+    edges_res = await db.execute(select(ConflictEdge).where(ConflictEdge.project_id == project.id))
     edges = list(edges_res.scalars().all())
 
-    gaps_res = await db.execute(
-        select(ResearchGap).where(ResearchGap.project_id == project.id)
-    )
+    gaps_res = await db.execute(select(ResearchGap).where(ResearchGap.project_id == project.id))
     gaps = list(gaps_res.scalars().all())
 
     # Build BibTeX
@@ -383,9 +373,9 @@ async def export_first_draft_report(
         bibtex_entry = f"""@article{{{citation_key},
   title = {{{p.title}}},
   author = {{{authors_formatted}}},
-  journal = {{{p.journal or 'Preprint/Journal'}}},
+  journal = {{{p.journal or "Preprint/Journal"}}},
   year = {{{p.year or 2024}}},
-  doi = {{{p.doi or ''}}}
+  doi = {{{p.doi or ""}}}
 }}"""
         bibtex_lines.append(bibtex_entry)
 
@@ -399,7 +389,7 @@ async def export_first_draft_report(
             f"| {claim.methodology or 'N/A'} "
             f"| {claim.dataset or 'N/A'} "
             f"| {claim.metric_summary or 'N/A'} "
-            f"| *\"{claim.evidence_quote}\"* |"
+            f'| *"{claim.evidence_quote}"* |'
         )
         table_rows.append(row)
 
@@ -419,7 +409,9 @@ async def export_first_draft_report(
             f"  - *Root Cause Hypothesis*: {e.root_cause_hypothesis or 'Underlying domain shift or experimental setup differences.'}"
         )
     conflicts_markdown = (
-        "\n".join(conflict_paragraphs) if conflict_paragraphs else "*No cross-paper conflict edges discovered yet.*"
+        "\n".join(conflict_paragraphs)
+        if conflict_paragraphs
+        else "*No cross-paper conflict edges discovered yet.*"
     )
 
     # Build Research Gaps Section
@@ -430,7 +422,9 @@ async def export_first_draft_report(
             f"**Description**: {g.description}\n\n"
             f"**Suggested Direction**: {g.suggested_direction or 'Formulate reproducible comparative benchmark.'}\n"
         )
-    gaps_markdown = "\n".join(gap_paragraphs) if gap_paragraphs else "*No research gaps synthesized yet.*"
+    gaps_markdown = (
+        "\n".join(gap_paragraphs) if gap_paragraphs else "*No research gaps synthesized yet.*"
+    )
 
     # PRISMA flow summary
     prisma_flow = {
@@ -451,9 +445,9 @@ This review followed PRISMA 2020 guidelines with Active Learning screening assis
 ---
 
 ## 1. Methodology & PRISMA Review Funnel
-- **Total Records Screened**: {prisma_flow['identified']}
-- **Records Excluded (Automated & Manual)**: {prisma_flow['excluded']}
-- **Eligible Studies Included**: {prisma_flow['included']}
+- **Total Records Screened**: {prisma_flow["identified"]}
+- **Records Excluded (Automated & Manual)**: {prisma_flow["excluded"]}
+- **Eligible Studies Included**: {prisma_flow["included"]}
 
 ---
 

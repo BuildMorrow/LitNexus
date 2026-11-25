@@ -95,8 +95,7 @@ async def search_openalex(
                 year=item.get("publication_year"),
                 abstract=reconstruct_abstract(item.get("abstract_inverted_index")),
                 citation_count=item.get("cited_by_count") or 0,
-                pdf_url=primary_loc.get("pdf_url")
-                or (item.get("open_access") or {}).get("oa_url"),
+                pdf_url=primary_loc.get("pdf_url") or (item.get("open_access") or {}).get("oa_url"),
                 scopus_quartile=sjr_res.quartile,
             )
         )

@@ -6,7 +6,6 @@ academic warning guards (e.g. sample size N < 30, high missingness, small cell c
 
 import csv
 import io
-import math
 from typing import Any
 
 from app.models.dataset import RiskLevel
@@ -15,7 +14,9 @@ from app.schemas.dataset import ColumnMeta, DataLimitationWarning
 
 class DataProfilerService:
     @staticmethod
-    def parse_and_profile_csv(csv_text: str) -> tuple[int, int, list[ColumnMeta], dict, list[dict[str, Any]]]:
+    def parse_and_profile_csv(
+        csv_text: str,
+    ) -> tuple[int, int, list[ColumnMeta], dict, list[dict[str, Any]]]:
         f = io.StringIO(csv_text.strip())
         reader = csv.DictReader(f)
         if not reader.fieldnames:
@@ -70,7 +71,9 @@ class DataProfilerService:
         return row_count, column_count, columns_meta, missing_summary, sample_preview
 
     @staticmethod
-    def inspect_limitations(row_count: int, columns_meta: list[ColumnMeta]) -> tuple[RiskLevel, list[DataLimitationWarning]]:
+    def inspect_limitations(
+        row_count: int, columns_meta: list[ColumnMeta]
+    ) -> tuple[RiskLevel, list[DataLimitationWarning]]:
         """
         Enforce crucial scientific guards:
         1. Small sample size N < 30 (Central Limit Theorem violations)

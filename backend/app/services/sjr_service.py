@@ -4,8 +4,8 @@ Provides lookup of journal prestige and Scopus Quartile (Q1, Q2, Q3, Q4)
 using standard ISSN and normalized journal title matching.
 """
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 
 # Standard reference seed of prominent academic journals across CS, AI, Medical, and Engineering
 # Can be extended with external CSV or OpenAlex source-level metadata

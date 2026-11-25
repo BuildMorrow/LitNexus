@@ -8,8 +8,16 @@ class ExtractedClaimSchema(BaseModel):
     methodology: str = Field(description="Primary model, algorithm, or experimental design.")
     dataset: str = Field(description="Datasets or testbeds evaluated.")
     metric_summary: str = Field(description="Key quantitative findings (e.g., F1=0.92).")
-    assumptions: list[str] = Field(default_factory=list, description="Explicit or implicit conditions.")
+    assumptions: list[str] = Field(
+        default_factory=list, description="Explicit or implicit conditions."
+    )
     evidence_quote: str = Field(description="Short verbatim snippet supporting this claim.")
+    page_number: int | None = Field(
+        default=None, description="Page number where evidence is found (if full-text)."
+    )
+    section_title: str | None = Field(
+        default=None, description="Section heading containing the evidence (e.g., 'Results')."
+    )
 
 
 class PaperClaimsOutput(BaseModel):
@@ -70,14 +78,14 @@ Act as a Cross-Examiner moderating a scientific debate between two papers:
 - Method: {claim_a.methodology}
 - Dataset: {claim_a.dataset}
 - Metrics: {claim_a.metric_summary}
-- Assumptions: {', '.join(claim_a.assumptions)}
+- Assumptions: {", ".join(claim_a.assumptions)}
 
 [Paper B]: {paper_b_title}
 - Claim: {claim_b.claim_text}
 - Method: {claim_b.methodology}
 - Dataset: {claim_b.dataset}
 - Metrics: {claim_b.metric_summary}
-- Assumptions: {', '.join(claim_b.assumptions)}
+- Assumptions: {", ".join(claim_b.assumptions)}
 
 Determine whether Paper B contradicts, supports, refines, or has an assumption_mismatch with Paper A.
 Explain the root cause (e.g., domain shift, hardware limits, dataset bias).

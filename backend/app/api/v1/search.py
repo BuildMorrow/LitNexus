@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_owned_project
 from app.core.database import get_db
+from app.models.chunk import PaperChunk
 from app.models.paper import Paper
 from app.models.project import ResearchProject
 from app.schemas.paper import PaperOut, SearchRequest
 from app.services.academic_search import search_openalex
+from app.services.pdf_processor import pdf_processor
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["search"])
 
@@ -78,3 +82,58 @@ async def search_and_ingest_papers(
     for p in added:
         await db.refresh(p)
     return added
+
+
+@router.post("/papers/{paper_id}/ingest-pdf", status_code=status.HTTP_200_OK)
+async def ingest_paper_pdf(
+    paper_id: uuid.UUID,
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Download and parse full-text PDF for an included paper.
+    Chunks text with page pinning and section detection into paper_chunks table.
+    """
+    res = await db.execute(
+        select(Paper).where(Paper.id == paper_id, Paper.project_id == project.id)
+    )
+    paper = res.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found in project")
+
+    if not paper.pdf_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Paper does not have a verified Open Access pdf_url available for download.",
+        )
+
+    try:
+        chunks = await pdf_processor.download_and_process_pdf(paper.pdf_url)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to fetch or parse PDF from {paper.pdf_url}: {exc}",
+        ) from exc
+
+    # Clear existing chunks if any
+    existing_chunks = await db.execute(select(PaperChunk).where(PaperChunk.paper_id == paper.id))
+    for ec in existing_chunks.scalars().all():
+        await db.delete(ec)
+
+    for ch in chunks:
+        db_chunk = PaperChunk(
+            paper_id=paper.id,
+            chunk_index=ch.chunk_index,
+            page_number=ch.page_number,
+            section_title=ch.section_title,
+            content=ch.content,
+        )
+        db.add(db_chunk)
+
+    await db.commit()
+    return {
+        "status": "success",
+        "paper_id": str(paper.id),
+        "chunks_indexed": len(chunks),
+        "pages_processed": max([c.page_number for c in chunks], default=0),
+    }

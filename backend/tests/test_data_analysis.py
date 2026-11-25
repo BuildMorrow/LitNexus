@@ -1,13 +1,11 @@
 """Test suite for Data Profiling, Statistical Warning Guards, and Method Advisory."""
 
-import uuid
 import pytest
 
 from app.models.dataset import RiskLevel
-from app.models.project import ResearchProject
 from app.schemas.dataset import ColumnMeta
-from app.services.data_profiler import data_profiler
 from app.services.data_analysis_advisor import data_analysis_advisor
+from app.services.data_profiler import data_profiler
 
 
 def test_parse_and_profile_csv():
@@ -17,8 +15,8 @@ sub_02,52,28.5,0
 sub_03,38,,1
 sub_04,61,42.1,0
 """
-    row_count, col_count, cols_meta, missing_summary, preview = (
-        data_profiler.parse_and_profile_csv(csv_text)
+    row_count, col_count, cols_meta, missing_summary, preview = data_profiler.parse_and_profile_csv(
+        csv_text
     )
 
     assert row_count == 4
@@ -34,7 +32,9 @@ sub_04,61,42.1,0
 def test_inspect_limitations_flags_small_sample_size():
     # N = 15 (< 30) should trigger high risk and small sample size warning
     dummy_cols = [
-        ColumnMeta(name="f1", data_type="numeric", missing_count=0, missing_ratio=0.0, unique_count=15)
+        ColumnMeta(
+            name="f1", data_type="numeric", missing_count=0, missing_ratio=0.0, unique_count=15
+        )
     ]
     risk, warnings = data_profiler.inspect_limitations(row_count=15, columns_meta=dummy_cols)
 
@@ -48,8 +48,20 @@ def test_inspect_limitations_flags_small_sample_size():
 @pytest.mark.asyncio
 async def test_data_analysis_advisor_fallback():
     dummy_cols = [
-        ColumnMeta(name="sensitivity", data_type="numeric", missing_count=0, missing_ratio=0.0, unique_count=20),
-        ColumnMeta(name="device_group", data_type="string", missing_count=0, missing_ratio=0.0, unique_count=2),
+        ColumnMeta(
+            name="sensitivity",
+            data_type="numeric",
+            missing_count=0,
+            missing_ratio=0.0,
+            unique_count=20,
+        ),
+        ColumnMeta(
+            name="device_group",
+            data_type="string",
+            missing_count=0,
+            missing_ratio=0.0,
+            unique_count=2,
+        ),
     ]
     methods, code, guide, warnings = await data_analysis_advisor.advise_methods(
         research_question="Does sensor sensitivity differ by device group?",

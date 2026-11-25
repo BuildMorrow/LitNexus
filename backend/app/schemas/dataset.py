@@ -37,22 +37,32 @@ class DatasetProfileOut(BaseModel):
 
 
 class AnalysisMethodProposal(BaseModel):
-    method_name: str = Field(description="e.g., Logistic Regression, Two-Sample T-test, Mann-Whitney U, Random Forest")
-    category: str = Field(description="e.g., Parametric Hypothesis Testing, Non-parametric, Supervised ML")
+    method_name: str = Field(
+        description="e.g., Logistic Regression, Two-Sample T-test, Mann-Whitney U, Random Forest"
+    )
+    category: str = Field(
+        description="e.g., Parametric Hypothesis Testing, Non-parametric, Supervised ML"
+    )
     rational: str = Field(description="Why this method fits the research question and data schema")
-    assumptions: list[str] = Field(default_factory=list, description="Assumptions required (e.g., normality, N>=30)")
+    assumptions: list[str] = Field(
+        default_factory=list, description="Assumptions required (e.g., normality, N>=30)"
+    )
     is_recommended: bool = True
 
 
 class DataLimitationWarning(BaseModel):
-    warning_type: str = Field(description="e.g., SMALL_SAMPLE_SIZE, CLASS_IMBALANCE, HIGH_MISSINGNESS, SKEWED_DISTRIBUTION")
+    warning_type: str = Field(
+        description="e.g., SMALL_SAMPLE_SIZE, CLASS_IMBALANCE, HIGH_MISSINGNESS, SKEWED_DISTRIBUTION"
+    )
     severity: RiskLevel
     message: str = Field(description="Actionable warning explaining statistical risk")
     recommendation: str = Field(description="How to mitigate or guard against false discovery")
 
 
 class AnalysisAdviceRequest(BaseModel):
-    analysis_goal: str = Field(description="e.g., Test if wearable ECG algorithm differs in sensitivity across age groups")
+    analysis_goal: str = Field(
+        description="e.g., Test if wearable ECG algorithm differs in sensitivity across age groups"
+    )
     target_column: str | None = None
 
 

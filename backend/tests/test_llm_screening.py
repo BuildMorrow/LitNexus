@@ -1,8 +1,8 @@
 """Test suite for LLM batch screening and evidence quote grounding."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
-from pydantic import BaseModel
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from app.models.paper import Paper, ScreeningSource, ScreeningStatus

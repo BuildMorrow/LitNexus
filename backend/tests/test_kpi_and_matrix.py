@@ -1,7 +1,8 @@
 """Test suite for Comparative Matrix and SLR KPI metrics endpoints."""
 
-from unittest.mock import AsyncMock, MagicMock
 import uuid
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from app.api.v1.conflicts import get_comparative_matrix, get_kpi_metrics

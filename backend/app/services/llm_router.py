@@ -53,8 +53,7 @@ class LLMRouter:
     ) -> T:
         schema_json = json.dumps(schema.model_json_schema(), ensure_ascii=False)
         full_system = (
-            f"{system_prompt}\n\n"
-            f"Respond strictly with JSON matching this schema:\n{schema_json}"
+            f"{system_prompt}\n\nRespond strictly with JSON matching this schema:\n{schema_json}"
         )
 
         last_error: Exception | None = None

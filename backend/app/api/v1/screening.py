@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +19,6 @@ from app.schemas.paper import (
 )
 from app.services.active_screener import ActiveLearningScreener, LabeledSample
 from app.services.llm_router import llm_router
-from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/projects/{project_id}/screening", tags=["screening"])
 
@@ -64,7 +64,10 @@ async def run_active_learning(
         paper_map[pid] = p
         text = f"{p.title}. {p.abstract or ''}".strip()
 
-        if p.screening_source in (ScreeningSource.human, ScreeningSource.llm) and p.screening_status in (
+        if p.screening_source in (
+            ScreeningSource.human,
+            ScreeningSource.llm,
+        ) and p.screening_status in (
             ScreeningStatus.included,
             ScreeningStatus.excluded,
         ):

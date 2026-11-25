@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -17,11 +16,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dev-only-secret-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://litnexus:litnexus_dev_pass@localhost:5432/litnexus"
-    )
+    DATABASE_URL: str = "postgresql+asyncpg://litnexus:litnexus_dev_pass@localhost:5432/litnexus"
 
     # Centralized LiteLLM settings
     LLM_PRIMARY_MODEL: str = "gemini/gemini-2.5-flash"
@@ -37,7 +34,7 @@ class Settings(BaseSettings):
     SEMANTIC_SCHOLAR_API_KEY: str = ""
 
     @property
-    def fallback_models_list(self) -> List[str]:
+    def fallback_models_list(self) -> list[str]:
         return [m.strip() for m in self.LLM_FALLBACK_MODELS.split(",") if m.strip()]
 
 

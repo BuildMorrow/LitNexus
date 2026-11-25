@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -18,9 +18,7 @@ class RiskLevel(str, enum.Enum):
 class DatasetProfile(Base):
     __tablename__ = "dataset_profiles"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("research_projects.id", ondelete="CASCADE"),
@@ -35,7 +33,7 @@ class DatasetProfile(Base):
     sample_preview: Mapped[list] = mapped_column(JSONB, default=list)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     project: Mapped["ResearchProject"] = relationship(back_populates="datasets")
@@ -47,9 +45,7 @@ class DatasetProfile(Base):
 class AnalysisSession(Base):
     __tablename__ = "analysis_sessions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("research_projects.id", ondelete="CASCADE"),
@@ -65,13 +61,11 @@ class AnalysisSession(Base):
     selected_method: Mapped[str | None] = mapped_column(String(128))
     generated_code: Mapped[str | None] = mapped_column(Text)
     data_limitations: Mapped[list] = mapped_column(JSONB, default=list)
-    risk_level: Mapped[RiskLevel] = mapped_column(
-        Enum(RiskLevel), default=RiskLevel.low
-    )
+    risk_level: Mapped[RiskLevel] = mapped_column(Enum(RiskLevel), default=RiskLevel.low)
     interpretation: Mapped[str | None] = mapped_column(Text)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     dataset: Mapped["DatasetProfile"] = relationship(back_populates="sessions")

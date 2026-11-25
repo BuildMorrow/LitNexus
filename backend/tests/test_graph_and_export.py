@@ -2,11 +2,12 @@
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from app.api.v1.conflicts import export_first_draft_report, get_conflict_graph
 from app.models.conflict import ConflictEdge, EdgeRelationType, PaperClaim, ResearchGap
-from app.models.paper import Paper, ScreeningSource, ScreeningStatus
+from app.models.paper import Paper, ScreeningStatus
 from app.models.project import ResearchProject
 
 

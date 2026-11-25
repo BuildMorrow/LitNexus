@@ -83,6 +83,8 @@ class ComparativeMatrixItem(BaseModel):
     metric_summary: str
     assumptions: list[str]
     evidence_quote: str
+    page_number: int | None = None
+    section_title: str | None = None
 
 
 class ComparativeMatrixResponse(BaseModel):

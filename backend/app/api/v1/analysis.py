@@ -131,15 +131,18 @@ async def advise_data_analysis(
     )
 
     # Advisor synthesizes methodology and executable code
-    recommended_methods, code, interpretation, combined_warnings = (
-        await data_analysis_advisor.advise_methods(
-            research_question=project.research_question,
-            analysis_goal=payload.analysis_goal,
-            row_count=dataset.row_count,
-            columns_meta=cols_meta,
-            rule_warnings=rule_warnings,
-            risk_level=risk_level,
-        )
+    (
+        recommended_methods,
+        code,
+        interpretation,
+        combined_warnings,
+    ) = await data_analysis_advisor.advise_methods(
+        research_question=project.research_question,
+        analysis_goal=payload.analysis_goal,
+        row_count=dataset.row_count,
+        columns_meta=cols_meta,
+        rule_warnings=rule_warnings,
+        risk_level=risk_level,
     )
 
     # Persist session

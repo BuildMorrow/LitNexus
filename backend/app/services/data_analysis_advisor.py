@@ -17,8 +17,12 @@ from app.services.llm_router import llm_router
 
 class _LLMAnalysisAdvicePayload(BaseModel):
     recommended_methods: list[AnalysisMethodProposal] = Field(default_factory=list)
-    suggested_python_code: str = Field(description="Executable, clean Python script using pandas, scipy.stats, or scikit-learn")
-    interpretation_guide: str = Field(description="Scholarly guidance on how to interpret p-values, effect sizes, and reporting format (APA/IEEE)")
+    suggested_python_code: str = Field(
+        description="Executable, clean Python script using pandas, scipy.stats, or scikit-learn"
+    )
+    interpretation_guide: str = Field(
+        description="Scholarly guidance on how to interpret p-values, effect sizes, and reporting format (APA/IEEE)"
+    )
     additional_limitations: list[str] = Field(default_factory=list)
 
 
@@ -54,7 +58,7 @@ Columns schema:
 {cols_summary}
 
 [Statistical Limitation Warnings Detected]:
-{existing_warnings_str or 'None'}
+{existing_warnings_str or "None"}
 
 INSTRUCTIONS:
 1. Recommend 2 to 3 candidate statistical or ML methods appropriate for N={row_count} and the specific variable types.
@@ -98,7 +102,9 @@ INSTRUCTIONS:
             # Fallback deterministic statistical advice if LLM is unavailable
             fallback_methods = [
                 AnalysisMethodProposal(
-                    method_name="Mann-Whitney U Test" if row_count < 50 else "Two-Sample Independent T-Test",
+                    method_name="Mann-Whitney U Test"
+                    if row_count < 50
+                    else "Two-Sample Independent T-Test",
                     category="Hypothesis Testing",
                     rational=f"Appropriate for comparing two distributions with sample size N={row_count}.",
                     assumptions=["Independent observations", "Ordinal or continuous scale"],
