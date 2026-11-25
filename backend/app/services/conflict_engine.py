@@ -1,4 +1,6 @@
 from pydantic import BaseModel, Field
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from app.services.llm_router import llm_router
 
@@ -117,3 +119,69 @@ Synthesize the top 3 concrete, publishable Research Gaps and propose experimenta
         system_prompt="You are Agent 3 (Research Gap Synthesizer). Turn cross-paper conflicts into novel research hypotheses.",
         temperature=0.3,
     )
+
+
+def select_candidate_conflict_pairs(
+    claim_texts: list[str],
+    paper_ids: list[str],
+    top_k: int = 3,
+    min_similarity: float = 0.08,
+) -> list[tuple[int, int, float]]:
+    """
+    Given a list of claim representations and their originating paper IDs, computes TF-IDF cosine similarity
+    and selects top-k candidate pairs across different papers.
+    Reduces Agent 2 pairwise cross-examination complexity from O(N^2) to O(k * N).
+    """
+    n = len(claim_texts)
+    if n < 2:
+        return []
+
+    # If very small number of claims, return all cross-paper pairs directly
+    if n <= 3:
+        pairs = []
+        for i in range(n):
+            for j in range(i + 1, n):
+                if paper_ids[i] != paper_ids[j]:
+                    pairs.append((i, j, 1.0))
+        return pairs
+
+    # Fit TF-IDF on claim representations
+    try:
+        vectorizer = TfidfVectorizer(stop_words="english", max_features=1000)
+        tfidf_matrix = vectorizer.fit_transform(claim_texts)
+        sim_matrix = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    except Exception:
+        # Fallback if vocabulary is empty or only stop words
+        pairs = []
+        for i in range(n):
+            for j in range(i + 1, n):
+                if paper_ids[i] != paper_ids[j]:
+                    pairs.append((i, j, 0.5))
+        return pairs[: max(top_k * n, 5)]
+
+    candidate_set: set[tuple[int, int]] = set()
+    scored_pairs: list[tuple[int, int, float]] = []
+
+    for i in range(n):
+        candidates_for_i: list[tuple[int, float]] = []
+        for j in range(n):
+            if i != j and paper_ids[i] != paper_ids[j]:
+                sim = float(sim_matrix[i, j])
+                candidates_for_i.append((j, sim))
+
+        candidates_for_i.sort(key=lambda x: x[1], reverse=True)
+
+        picked = 0
+        for j, sim in candidates_for_i:
+            if sim >= min_similarity or picked == 0:
+                pair_key = (min(i, j), max(i, j))
+                if pair_key not in candidate_set:
+                    candidate_set.add(pair_key)
+                    scored_pairs.append((pair_key[0], pair_key[1], sim))
+                picked += 1
+                if picked >= top_k:
+                    break
+
+    scored_pairs.sort(key=lambda x: x[2], reverse=True)
+    return scored_pairs
+

@@ -23,6 +23,7 @@ from app.services.conflict_engine import (
     ExtractedClaimSchema,
     cross_examine_claims,
     extract_paper_claims,
+    select_candidate_conflict_pairs,
     synthesize_research_gaps,
 )
 
@@ -84,36 +85,49 @@ async def run_conflict_discovery(
             await db.flush()
             extracted_pairs.append((paper, db_claim, c))
 
+    # Select candidate pairs using semantic TF-IDF overlap O(k * N) to control LLM cost
+    claim_texts = [
+        f"{c.claim_text} {c.methodology} {c.dataset} {c.metric_summary} {' '.join(c.assumptions)}"
+        for _, _, c in extracted_pairs
+    ]
+    paper_ids = [str(p.id) for p, _, _ in extracted_pairs]
+
+    candidate_pairs = select_candidate_conflict_pairs(
+        claim_texts=claim_texts,
+        paper_ids=paper_ids,
+        top_k=2,
+        min_similarity=0.05,
+    )
+
     edges: list[ConflictEdge] = []
     conflict_summaries: list[str] = []
 
-    for i in range(len(extracted_pairs)):
-        for j in range(i + 1, len(extracted_pairs)):
-            p_a, db_c_a, schema_a = extracted_pairs[i]
-            p_b, db_c_b, schema_b = extracted_pairs[j]
+    for idx_a, idx_b, _sim in candidate_pairs:
+        p_a, db_c_a, schema_a = extracted_pairs[idx_a]
+        p_b, db_c_b, schema_b = extracted_pairs[idx_b]
 
-            exam = await cross_examine_claims(p_a.title, schema_a, p_b.title, schema_b)
-            rel_type = EdgeRelationType(exam.relation_type)
+        exam = await cross_examine_claims(p_a.title, schema_a, p_b.title, schema_b)
+        rel_type = EdgeRelationType(exam.relation_type)
 
-            edge = ConflictEdge(
-                project_id=project.id,
-                source_claim_id=db_c_a.id,
-                target_claim_id=db_c_b.id,
-                relation_type=rel_type,
-                confidence=exam.confidence,
-                debate_summary=exam.debate_summary,
-                root_cause_hypothesis=exam.root_cause_hypothesis,
+        edge = ConflictEdge(
+            project_id=project.id,
+            source_claim_id=db_c_a.id,
+            target_claim_id=db_c_b.id,
+            relation_type=rel_type,
+            confidence=exam.confidence,
+            debate_summary=exam.debate_summary,
+            root_cause_hypothesis=exam.root_cause_hypothesis,
+        )
+        db.add(edge)
+        edges.append(edge)
+
+        if rel_type in (
+            EdgeRelationType.contradicts,
+            EdgeRelationType.assumption_mismatch,
+        ):
+            conflict_summaries.append(
+                f"[{rel_type.value}] {p_a.title} vs {p_b.title}: {exam.debate_summary} (Root cause: {exam.root_cause_hypothesis})"
             )
-            db.add(edge)
-            edges.append(edge)
-
-            if rel_type in (
-                EdgeRelationType.contradicts,
-                EdgeRelationType.assumption_mismatch,
-            ):
-                conflict_summaries.append(
-                    f"[{rel_type.value}] {p_a.title} vs {p_b.title}: {exam.debate_summary} (Root cause: {exam.root_cause_hypothesis})"
-                )
 
     gaps: list[ResearchGap] = []
     if conflict_summaries:
