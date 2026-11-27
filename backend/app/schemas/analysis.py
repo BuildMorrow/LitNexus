@@ -69,6 +69,7 @@ class DraftReportResponse(BaseModel):
     bibtex_content: str
     latex_content: str = ""
     quarto_content: str = ""
+    prisma_svg: str = ""
     prisma_flow_summary: dict
     total_references: int
 

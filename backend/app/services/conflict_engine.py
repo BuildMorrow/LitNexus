@@ -53,10 +53,12 @@ class GapSynthesisOutput(BaseModel):
 async def extract_paper_claims(title: str, content: str) -> PaperClaimsOutput:
     prompt = f"""
 Analyze the following scientific paper and extract 1-3 concrete, verifiable claims.
+If [Page p.X | Section: ...] tags are present in the content, record the exact page_number (integer) and section_title where the evidence quote comes from.
+Every "evidence_quote" MUST be a verbatim sentence/snippet copied from the Content below.
 
 Title: {title}
-Content/Abstract:
-{content[:6000]}
+Content/Excerpts:
+{content[:9000]}
 """
     return await llm_router.generate_structured(
         prompt=prompt,

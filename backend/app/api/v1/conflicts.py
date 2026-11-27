@@ -1,9 +1,13 @@
+import io
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_owned_project
 from app.core.database import get_db
+from app.models.chunk import PaperChunk
 from app.models.conflict import ConflictEdge, EdgeRelationType, PaperClaim, ResearchGap
 from app.models.paper import Paper, ScreeningStatus
 from app.models.project import ResearchProject
@@ -26,6 +30,8 @@ from app.services.conflict_engine import (
     select_candidate_conflict_pairs,
     synthesize_research_gaps,
 )
+from app.services.grounding_verifier import locate_quote_in_segments
+from app.services.prisma_export import generate_prisma_flow_svg, generate_slr_excel_bytes
 
 router = APIRouter(prefix="/projects/{project_id}/conflicts", tags=["conflicts"])
 
@@ -66,10 +72,32 @@ async def run_conflict_discovery(
     target_papers = included_papers[:10]
     extracted_pairs: list[tuple[Paper, PaperClaim, ExtractedClaimSchema]] = []
 
+    chunk_res = await db.execute(
+        select(PaperChunk)
+        .where(PaperChunk.paper_id.in_([p.id for p in target_papers]))
+        .order_by(PaperChunk.chunk_index.asc())
+    )
+    chunks_by_paper: dict = {}
+    for ch in chunk_res.scalars().all():
+        chunks_by_paper.setdefault(ch.paper_id, []).append(ch)
+
     for paper in target_papers:
-        content = paper.abstract or paper.title
+        paper_chunks = chunks_by_paper.get(paper.id, [])
+        if paper_chunks:
+            content = "\n\n".join(
+                f"[Page p.{ch.page_number or 1} | Section: {ch.section_title or 'Body'}]\n{ch.content}"
+                for ch in paper_chunks[:8]
+            )
+            segments = [(ch.content, ch.page_number) for ch in paper_chunks]
+        else:
+            content = paper.abstract or paper.title
+            segments = [(f"{paper.title}. {paper.abstract or ''}", None)]
+
         claims_out = await extract_paper_claims(title=paper.title, content=content)
         for c in claims_out.claims[:1]:
+            # Deterministic Verbatim Gate: anchor quote to verified page number if possible
+            match = locate_quote_in_segments(c.evidence_quote, segments, min_score=0.50)
+            pinned_page = (match.page_number if match and match.page_number else c.page_number)
             db_claim = PaperClaim(
                 paper_id=paper.id,
                 claim_text=c.claim_text,
@@ -78,7 +106,7 @@ async def run_conflict_discovery(
                 metric_summary=c.metric_summary,
                 assumptions=c.assumptions,
                 evidence_quote=c.evidence_quote,
-                page_number=c.page_number,
+                page_number=pinned_page,
                 section_title=c.section_title,
             )
             db.add(db_claim)
@@ -618,6 +646,13 @@ A total of **{len(all_papers)}** records were screened using Active Learning, yi
 ```
 """
 
+    prisma_svg = generate_prisma_flow_svg(
+        identified=prisma_flow["identified"],
+        screened=prisma_flow["screened"],
+        excluded=prisma_flow["excluded"],
+        included=prisma_flow["included"],
+    )
+
     return DraftReportResponse(
         project_id=project.id,
         project_title=project.title,
@@ -625,6 +660,46 @@ A total of **{len(all_papers)}** records were screened using Active Learning, yi
         bibtex_content=bibtex_content,
         latex_content=latex_content,
         quarto_content=quarto_content,
+        prisma_svg=prisma_svg,
         prisma_flow_summary=prisma_flow,
         total_references=len(included_papers),
+    )
+
+
+@router.get("/export-xlsx")
+async def export_project_excel(
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export screened papers, evidence matrix, and conflict/gaps to multi-sheet Excel (.xlsx)."""
+    papers_res = await db.execute(select(Paper).where(Paper.project_id == project.id))
+    all_papers = list(papers_res.scalars().all())
+
+    claims_res = await db.execute(
+        select(PaperClaim, Paper)
+        .join(Paper, PaperClaim.paper_id == Paper.id)
+        .where(
+            Paper.project_id == project.id,
+            Paper.screening_status == ScreeningStatus.included,
+        )
+    )
+    claims_rows = list(claims_res.all())
+
+    edges_res = await db.execute(select(ConflictEdge).where(ConflictEdge.project_id == project.id))
+    edges = list(edges_res.scalars().all())
+
+    gaps_res = await db.execute(select(ResearchGap).where(ResearchGap.project_id == project.id))
+    gaps = list(gaps_res.scalars().all())
+
+    xlsx_bytes = generate_slr_excel_bytes(
+        project_title=project.title,
+        papers=all_papers,
+        claims_rows=claims_rows,
+        edges=edges,
+        gaps=gaps,
+    )
+    return StreamingResponse(
+        io.BytesIO(xlsx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="litnexus_slr_report.xlsx"'},
     )
