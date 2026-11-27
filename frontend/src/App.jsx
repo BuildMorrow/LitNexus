@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { BarChart3, FileDown, FileSpreadsheet, Filter, Network, Plus } from 'lucide-react'
+import { BarChart3, FileDown, FileSpreadsheet, Filter, Network, Plus, Wand2 } from 'lucide-react'
 import { apiRequest } from './services/api'
 import AuthScreen from './components/auth/AuthScreen'
 import Header from './components/layout/Header'
 import KpiDashboard from './components/layout/KpiDashboard'
 import NewProjectModal from './components/projects/NewProjectModal'
+import ResearchSetupTab from './components/setup/ResearchSetupTab'
 import ScreeningBoardTab from './components/screening/ScreeningBoardTab'
 import EvidenceMatrixTab from './components/matrix/EvidenceMatrixTab'
 import DataAnalysisTab from './components/analysis/DataAnalysisTab'
@@ -19,6 +20,7 @@ import {
   DEMO_MATRIX_DATA,
   DEMO_PAPERS,
   DEMO_PROJECT,
+  DEMO_SEARCH_HISTORY,
 } from './data/demoData'
 
 const DEMO_TOKEN = 'mock-demo-token-for-prototype'
@@ -48,11 +50,13 @@ export default function App() {
     exclusion_criteria: 'Animal studies, Non-wearable multi-lead ECG, Pure review papers without benchmark',
   })
 
-  // Papers and Search
+  // Papers, Search History & Snowballing
   const [papers, setPapers] = useState([])
+  const [searchHistory, setSearchHistory] = useState([])
   const [searchQuery, setSearchQuery] = useState('wearable ECG 1D CNN arrhythmia')
   const [searchLimit, setSearchLimit] = useState(25)
   const [isSearching, setIsSearching] = useState(false)
+  const [isSnowballing, setIsSnowballing] = useState(false)
   const [yearFrom, setYearFrom] = useState('')
   const [yearTo, setYearTo] = useState('')
   const [openAccessOnly, setOpenAccessOnly] = useState(false)
@@ -97,6 +101,8 @@ p_08,49,19.3,69,0.97,low`)
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false)
   const [draftFormat, setDraftFormat] = useState('md')
 
+  const activeProject = projects.find((p) => p.id === selectedProjectId) || null
+
   useEffect(() => {
     apiRequest('/health')
       .then(() => setApiStatus('online'))
@@ -104,14 +110,13 @@ p_08,49,19.3,69,0.97,low`)
   }, [])
 
   useEffect(() => {
-    if (token && !isDemoMode) {
-      loadProjects()
-    }
+    if (token && !isDemoMode) loadProjects()
   }, [token, isDemoMode])
 
   useEffect(() => {
     if (selectedProjectId && !isDemoMode) {
       loadProjectPapers(selectedProjectId)
+      loadSearchHistory(selectedProjectId)
       loadKpiMetrics(selectedProjectId)
       if (activeTab === 'matrix') loadComparativeMatrix(selectedProjectId)
       else if (activeTab === 'analysis') loadProjectDatasets(selectedProjectId)
@@ -143,6 +148,7 @@ p_08,49,19.3,69,0.97,low`)
     setProjects([])
     setSelectedProjectId(null)
     setPapers([])
+    setSearchHistory([])
     setKpiMetrics(null)
   }
 
@@ -153,6 +159,7 @@ p_08,49,19.3,69,0.97,low`)
     setSelectedProjectId(DEMO_PROJECT.id)
     setKpiMetrics(DEMO_KPI_METRICS)
     setPapers(DEMO_PAPERS)
+    setSearchHistory(DEMO_SEARCH_HISTORY)
     setMatrixData(DEMO_MATRIX_DATA)
     setDatasets([DEMO_DATASET])
     setSelectedDatasetId(DEMO_DATASET.id)
@@ -193,6 +200,14 @@ p_08,49,19.3,69,0.97,low`)
   async function loadProjectPapers(pId) {
     try {
       setPapers(await apiRequest(`/projects/${pId}/papers`))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function loadSearchHistory(pId) {
+    try {
+      setSearchHistory(await apiRequest(`/projects/${pId}/search/history`))
     } catch (err) {
       console.error(err)
     }
@@ -340,11 +355,56 @@ p_08,49,19.3,69,0.97,low`)
         }),
       })
       await loadProjectPapers(selectedProjectId)
+      await loadSearchHistory(selectedProjectId)
       await loadKpiMetrics(selectedProjectId)
     } catch (err) {
       alert('Search failed: ' + err.message)
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  async function handleSnowball() {
+    const seedIds = papers.filter((p) => p.screening_status === 'included').map((p) => p.id)
+    if (seedIds.length === 0) return
+    setIsSnowballing(true)
+    try {
+      if (isDemoMode) {
+        await new Promise((res) => setTimeout(res, 600))
+        setPapers((prev) => [
+          {
+            id: `sb-${Date.now()}`,
+            title: 'Noise-Robust Single-Lead Wearable Arrhythmia Benchmark (Snowball Discovery)',
+            authors: ['Tran, Minh', 'Pham, Lan'],
+            journal: 'Biomedical Signal Processing and Control',
+            year: 2025,
+            scopus_quartile: 'Q1',
+            discovery_source: 'forward_snowball',
+            seed_distance: 1,
+            screening_status: 'uncertain',
+            screening_source: 'none',
+            al_inclusion_prob: 0.64,
+            al_uncertainty_score: 0.72,
+            abstract: 'Follow-up study citing single-lead 1D CNN patches under ambulatory motion artifacts.',
+          },
+          ...prev,
+        ])
+        return
+      }
+      const res = await apiRequest(`/projects/${selectedProjectId}/search/snowball`, {
+        method: 'POST',
+        body: JSON.stringify({ seed_paper_ids: seedIds.slice(0, 5), limit_per_direction: 15, distance: 1 }),
+      })
+      alert(
+        `Snowball 2 chiều hoàn tất! Tìm thêm ${res.added_count} bài mới (Backward: ${res.backward_count}, Forward: ${res.forward_count}).`
+      )
+      await loadProjectPapers(selectedProjectId)
+      await loadSearchHistory(selectedProjectId)
+      await loadKpiMetrics(selectedProjectId)
+    } catch (err) {
+      alert('Snowball failed: ' + err.message)
+    } finally {
+      setIsSnowballing(false)
     }
   }
 
@@ -383,16 +443,14 @@ p_08,49,19.3,69,0.97,low`)
     try {
       if (isDemoMode) {
         await new Promise((res) => setTimeout(res, 600))
-        alert(
-          `[Demo Mode] Đã trích xuất thành công toàn văn PDF của "${paper.title}"!\nTổng số trang: 6, Phân đoạn semantic: 14 chunks có neo số trang.`
-        )
+        alert(`[Demo Mode] Đã trích xuất PDF "${paper.title}" thành công!`)
         return
       }
       const res = await apiRequest(`/projects/${selectedProjectId}/papers/${paper.id}/ingest-pdf`, {
         method: 'POST',
         body: JSON.stringify({ pdf_url: pdfUrl }),
       })
-      alert(`Đã trích xuất toàn văn PDF thành công!\nTổng số trang: ${res.total_pages}\nSố phân đoạn chunks neo trang: ${res.total_chunks}`)
+      alert(`Đã trích xuất toàn văn PDF thành công!\nSố trang: ${res.pages_processed}\nSố chunks: ${res.chunks_indexed}`)
       loadProjectPapers(selectedProjectId)
     } catch (err) {
       alert('Lỗi nạp PDF: ' + err.message)
@@ -421,7 +479,7 @@ p_08,49,19.3,69,0.97,low`)
         method: 'POST',
         body: JSON.stringify({ limit: 10 }),
       })
-      alert(`LLM đã phân loại ${res.processed_count} bài (Included: ${res.auto_included}, Excluded: ${res.auto_excluded}) có bằng chứng trích dẫn.`)
+      alert(`LLM đã phân loại ${res.processed_count} bài (Included: ${res.auto_included}, Excluded: ${res.auto_excluded}).`)
       await loadProjectPapers(selectedProjectId)
       await loadKpiMetrics(selectedProjectId)
     } catch (err) {
@@ -432,11 +490,12 @@ p_08,49,19.3,69,0.97,low`)
   }
 
   const tabs = [
-    { id: 'screening', label: '1. Phễu Sàng Lọc Học máy (Active Screening Board)', icon: Filter, accent: 'border-indigo-500 text-indigo-400' },
-    { id: 'matrix', label: '2. Bảng Ma trận So sánh Bằng chứng (Comparative Matrix)', icon: FileSpreadsheet, accent: 'border-indigo-500 text-indigo-400' },
-    { id: 'analysis', label: '3. Trợ lý Phân Tích Dữ Liệu Sơ Bộ (Data Analysis Studio)', icon: BarChart3, iconColor: 'text-emerald-400', accent: 'border-indigo-500 text-indigo-400' },
-    { id: 'conflicts', label: '4. Đồ thị Mâu thuẫn & Khoảng trống Nghiên cứu (Conflict Graph)', icon: Network, iconColor: 'text-rose-400', accent: 'border-rose-500 text-rose-400' },
-    { id: 'draft', label: '5. Xuất Bản Thảo Đầu Tiên & PRISMA (Draft & BibTeX)', icon: FileDown, iconColor: 'text-cyan-400', accent: 'border-indigo-500 text-indigo-400' },
+    { id: 'setup', label: '0. Thiết lập Đề tài (AI PICO)', icon: Wand2, iconColor: 'text-cyan-400', accent: 'border-cyan-500 text-cyan-400' },
+    { id: 'screening', label: '1. Sàng lọc & Snowball', icon: Filter, accent: 'border-indigo-500 text-indigo-400' },
+    { id: 'matrix', label: '2. Ma trận Bằng chứng', icon: FileSpreadsheet, accent: 'border-indigo-500 text-indigo-400' },
+    { id: 'analysis', label: '3. Phân tích Dữ liệu', icon: BarChart3, iconColor: 'text-emerald-400', accent: 'border-indigo-500 text-indigo-400' },
+    { id: 'conflicts', label: '4. Đồ thị Mâu thuẫn', icon: Network, iconColor: 'text-rose-400', accent: 'border-rose-500 text-rose-400' },
+    { id: 'draft', label: '5. Xuất Bản thảo PRISMA', icon: FileDown, iconColor: 'text-cyan-400', accent: 'border-indigo-500 text-indigo-400' },
   ]
 
   return (
@@ -504,6 +563,17 @@ p_08,49,19.3,69,0.97,low`)
             })}
           </div>
 
+          {activeTab === 'setup' && (
+            <ResearchSetupTab
+              activeProject={activeProject}
+              isDemoMode={isDemoMode}
+              onApplyBooleanQuery={(q) => {
+                setSearchQuery(q)
+                setActiveTab('screening')
+              }}
+            />
+          )}
+
           {activeTab === 'screening' && (
             <ScreeningBoardTab
               searchQuery={searchQuery}
@@ -518,10 +588,13 @@ p_08,49,19.3,69,0.97,low`)
               setOpenAccessOnly={setOpenAccessOnly}
               isSearching={isSearching}
               onSearch={handleSearch}
+              searchHistory={searchHistory}
               isRunningAL={isRunningAL}
               onRunActiveLearning={handleRunActiveLearning}
               isRunningLLM={isRunningLLM}
               onAutoLabelUncertain={handleAutoLabelUncertain}
+              isSnowballing={isSnowballing}
+              onSnowball={handleSnowball}
               papers={papers}
               onLabelPaper={handleLabelPaper}
               onIngestPdf={handleIngestPdf}

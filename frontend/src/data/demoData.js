@@ -71,10 +71,21 @@ export const DEMO_PAPERS = [
     scopus_quartile: 'Q1',
     screening_status: 'included',
     screening_source: 'llm',
+    discovery_source: 'keyword',
+    seed_distance: 0,
     al_inclusion_prob: 0.91,
     al_uncertainty_score: 0.18,
     abstract:
       'Demonstrating an ultra-compact 1D convolutional model deployed on ARM Cortex-M4 wearable patches with 97.8% sensitivity under noisy motion artifacts.',
+  },
+]
+
+export const DEMO_SEARCH_HISTORY = [
+  {
+    id: 'sq-1',
+    query_string: '("wearable ECG" OR "single-lead ECG") AND "1D CNN"',
+    source_type: 'keyword',
+    result_count: 35,
   },
 ]
 

@@ -48,6 +48,10 @@ class Paper(Base):
     # Journal Verification
     scopus_quartile: Mapped[str | None] = mapped_column(String(16))  # Q1, Q2, Q3, Q4
 
+    # Discovery provenance (PRISMA traceability)
+    discovery_source: Mapped[str] = mapped_column(String(32), default="keyword")
+    seed_distance: Mapped[int] = mapped_column(Integer, default=0)
+
     # Stage 1: Active Learning Hybrid Screening
     screening_status: Mapped[ScreeningStatus] = mapped_column(
         Enum(ScreeningStatus), default=ScreeningStatus.unscreened, index=True
