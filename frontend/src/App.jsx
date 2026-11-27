@@ -695,6 +695,8 @@ p_08,49,19.3,69,0.97,low`)
 
           {activeTab === 'analysis' && (
             <DataAnalysisTab
+              projectId={selectedProjectId}
+              isDemoMode={isDemoMode}
               datasets={datasets}
               selectedDatasetId={selectedDatasetId}
               setSelectedDatasetId={setSelectedDatasetId}
@@ -704,6 +706,7 @@ p_08,49,19.3,69,0.97,low`)
               setCsvInput={setCsvInput}
               isProfiling={isProfiling}
               onUploadDataset={handleUploadDataset}
+              onReloadDatasets={() => loadProjectDatasets(selectedProjectId)}
               analysisGoal={analysisGoal}
               setAnalysisGoal={setAnalysisGoal}
               isAdvising={isAdvising}

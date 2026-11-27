@@ -31,6 +31,7 @@ from app.services.conflict_engine import (
     synthesize_research_gaps,
 )
 from app.services.grounding_verifier import locate_quote_in_segments
+from app.services.llm_router import llm_router
 from app.services.prisma_export import generate_prisma_flow_svg, generate_slr_excel_bytes
 
 router = APIRouter(prefix="/projects/{project_id}/conflicts", tags=["conflicts"])
@@ -703,3 +704,31 @@ async def export_project_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="litnexus_slr_report.xlsx"'},
     )
+
+
+@router.get("/usage-observability")
+async def get_usage_observability(
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return runtime LLM token usage, cost estimates, and Active Learning savings summary."""
+    papers_res = await db.execute(select(Paper).where(Paper.project_id == project.id))
+    papers = list(papers_res.scalars().all())
+    total_papers = len(papers)
+    al_auto = sum(
+        1
+        for p in papers
+        if p.screening_source.value == "active_learning"
+    )
+    llm_screened = sum(1 for p in papers if p.screening_source.value == "llm")
+    estimated_baseline_tokens = total_papers * 1200
+    saved_tokens = al_auto * 1200
+    return {
+        "project_id": str(project.id),
+        "total_papers": total_papers,
+        "active_learning_auto_routed": al_auto,
+        "llm_screened_uncertain": llm_screened,
+        "estimated_baseline_tokens": estimated_baseline_tokens,
+        "estimated_tokens_saved_by_al": saved_tokens,
+        "runtime_gateway_stats": llm_router.usage_stats,
+    }

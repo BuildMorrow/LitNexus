@@ -1,6 +1,10 @@
-import { AlertTriangle, BarChart3, Bot, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, BarChart3, Bot, CheckCircle2, Play, Terminal, Upload } from 'lucide-react'
+import { apiRequest } from '../../services/api'
 
 export default function DataAnalysisTab({
+  projectId,
+  isDemoMode,
   datasets,
   selectedDatasetId,
   setSelectedDatasetId,
@@ -10,12 +14,78 @@ export default function DataAnalysisTab({
   setCsvInput,
   isProfiling,
   onUploadDataset,
+  onReloadDatasets,
   analysisGoal,
   setAnalysisGoal,
   isAdvising,
   onGetAnalysisAdvice,
   analysisResult,
 }) {
+  const [editableCode, setEditableCode] = useState('')
+  const [sandboxOutput, setSandboxOutput] = useState(null)
+  const [isExecuting, setIsExecuting] = useState(false)
+  const [isUploadingFile, setIsUploadingFile] = useState(false)
+
+  const codeToRun = editableCode || analysisResult?.suggested_python_code || ''
+
+  async function handleCsvFileUpload(file) {
+    if (!file || !projectId) return
+    setIsUploadingFile(true)
+    try {
+      if (isDemoMode) {
+        const text = await file.text()
+        setDatasetName(file.name)
+        setCsvInput(text)
+        alert(`[Demo Mode] Đã nạp nội dung file CSV "${file.name}".`)
+        return
+      }
+      const formData = new FormData()
+      formData.append('file', file)
+      const created = await apiRequest(`/projects/${projectId}/analysis/datasets/upload-file`, {
+        method: 'POST',
+        body: formData,
+      })
+      onReloadDatasets?.()
+      setSelectedDatasetId(created.id)
+      alert(`Đã upload & profile file ${created.dataset_name} (N=${created.row_count})!`)
+    } catch (err) {
+      alert('Upload CSV failed: ' + err.message)
+    } finally {
+      setIsUploadingFile(false)
+    }
+  }
+
+  async function handleExecuteSandbox() {
+    if (!codeToRun.trim() || !selectedDatasetId) return
+    setIsExecuting(true)
+    try {
+      if (isDemoMode) {
+        await new Promise((res) => setTimeout(res, 500))
+        setSandboxOutput({
+          success: true,
+          stdout: 'Mann-Whitney U statistic: 0.00, Exact p-value: 0.0380\n95% Bootstrap CI for median difference: [0.085, 0.165]',
+          stderr: '',
+          execution_time_ms: 142,
+          figures: [],
+          error: null,
+        })
+        return
+      }
+      const res = await apiRequest(
+        `/projects/${projectId}/analysis/datasets/${selectedDatasetId}/execute`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ code: codeToRun, timeout_seconds: 10.0 }),
+        }
+      )
+      setSandboxOutput(res)
+    } catch (err) {
+      setSandboxOutput({ success: false, error: err.message, stdout: '', figures: [] })
+    } finally {
+      setIsExecuting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -24,11 +94,11 @@ export default function DataAnalysisTab({
           <div>
             <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
               <BarChart3 className="h-4 w-4" />
-              <span>Trụ cột 2 &bull; Trợ lý Phân tích Dữ liệu Ban đầu &amp; Sinh Code Tự động</span>
+              <span>Trụ cột 2 &bull; Trợ lý Phân tích Dữ liệu &amp; Python Sandbox An Toàn</span>
             </div>
             <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-              Giải quyết bài toán SV và nghiên cứu viên thiếu kinh nghiệm chọn sai kiểm định thống kê.
-              Hệ thống tự động phát hiện cỡ mẫu nhỏ (N &lt; 30), bất đối xứng dữ liệu, cảnh báo giới hạn nghiêm ngặt và sinh code Python mẫu (Pandas/Scipy).
+              Tự động phát hiện cỡ mẫu nhỏ (N &lt; 30), bất đối xứng dữ liệu, cảnh báo giới hạn thống kê
+              và cho phép chạy trực tiếp mã Python (Pandas/Scipy/Matplotlib) trong AST-Guarded Sandbox.
             </p>
           </div>
         </div>
@@ -38,14 +108,19 @@ export default function DataAnalysisTab({
         {/* Left Column: CSV Profile & Ingestion */}
         <div className="lg:col-span-5 space-y-4">
           <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-4">
-            <h4 className="text-sm font-semibold text-white flex items-center justify-between">
-              <span>1. Dữ liệu Nghiên cứu Thực nghiệm</span>
-              {datasets.length > 0 && (
-                <span className="text-[11px] text-slate-400 font-normal">
-                  {datasets.length} dataset sẵn sàng
-                </span>
-              )}
-            </h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-white">1. Dữ liệu Nghiên cứu Thực nghiệm</h4>
+              <label className="cursor-pointer inline-flex items-center gap-1 rounded border border-indigo-500/40 bg-indigo-600/15 px-2.5 py-1 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-600/25">
+                <Upload className="h-3 w-3" />
+                {isUploadingFile ? 'Đang nạp...' : 'Upload .CSV'}
+                <input
+                  type="file"
+                  accept=".csv,.tsv,text/csv"
+                  className="hidden"
+                  onChange={(e) => handleCsvFileUpload(e.target.files?.[0])}
+                />
+              </label>
+            </div>
 
             {datasets.length > 0 && (
               <div>
@@ -79,7 +154,7 @@ export default function DataAnalysisTab({
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Nội dung CSV (Dán văn bản thô hoặc upload)
+                  Nội dung CSV (Dán văn bản thô hoặc upload file)
                 </label>
                 <textarea
                   rows={6}
@@ -87,7 +162,6 @@ export default function DataAnalysisTab({
                   value={csvInput}
                   onChange={(e) => setCsvInput(e.target.value)}
                   className="w-full font-mono text-[11px] rounded-lg border border-slate-700 bg-slate-950 p-3 text-slate-200 focus:border-indigo-500 focus:outline-none leading-relaxed"
-                  placeholder="col1,col2,col3&#10;val1,val2,val3"
                 />
               </div>
 
@@ -114,7 +188,6 @@ export default function DataAnalysisTab({
                   value={analysisGoal}
                   onChange={(e) => setAnalysisGoal(e.target.value)}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5 text-xs text-slate-100 focus:border-indigo-500 focus:outline-none"
-                  placeholder="So sánh độ nhạy mô hình giữa nhóm nhiễu thấp vs nhiễu cao..."
                 />
               </div>
 
@@ -178,35 +251,81 @@ export default function DataAnalysisTab({
                         </span>
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed">{m.rational}</p>
-                      {m.assumptions && m.assumptions.length > 0 && (
-                        <div className="text-[10px] text-slate-500 pt-1">
-                          Giả định: {m.assumptions.join(' &bull; ')}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Editable Python Code + Sandbox Runner */}
               <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="text-sm font-semibold text-white">
-                    Code Python Phân Tích Mẫu (Pandas &bull; Scipy &bull; Statsmodels)
+                    Python EDA Sandbox (Tự động nạp DataFrame <code className="text-emerald-300">df</code>)
                   </h4>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(analysisResult.suggested_python_code)
-                      alert('Đã sao chép mã nguồn Python vào Clipboard!')
-                    }}
-                    className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-700 transition"
-                  >
-                    Sao chép Code
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(codeToRun)
+                        alert('Đã sao chép mã nguồn Python vào Clipboard!')
+                      }}
+                      className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-700 transition"
+                    >
+                      Sao chép
+                    </button>
+                    <button
+                      onClick={handleExecuteSandbox}
+                      disabled={isExecuting}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition disabled:opacity-50"
+                    >
+                      <Play className="h-3.5 w-3.5" />
+                      {isExecuting ? 'Đang thực thi...' : 'Chạy Code trong Sandbox'}
+                    </button>
+                  </div>
                 </div>
 
-                <pre className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-indigo-200 leading-relaxed max-h-[360px]">
-                  <code>{analysisResult.suggested_python_code}</code>
-                </pre>
+                <textarea
+                  rows={10}
+                  value={codeToRun}
+                  onChange={(e) => setEditableCode(e.target.value)}
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 p-4 font-mono text-xs text-indigo-200 focus:border-indigo-500 focus:outline-none leading-relaxed"
+                />
+
+                {sandboxOutput && (
+                  <div className="rounded-lg border border-slate-700 bg-slate-950 p-4 space-y-3">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
+                        <Terminal className="h-3.5 w-3.5" />
+                        Kết quả Thực thi Sandbox
+                      </span>
+                      <span className="text-slate-400">Thời gian: {sandboxOutput.execution_time_ms} ms</span>
+                    </div>
+
+                    {sandboxOutput.error && (
+                      <div className="rounded border border-rose-500/40 bg-rose-950/30 p-2.5 text-xs text-rose-300 font-mono">
+                        {sandboxOutput.error}
+                      </div>
+                    )}
+
+                    {sandboxOutput.stdout && (
+                      <pre className="rounded bg-slate-900 p-3 font-mono text-xs text-emerald-200 whitespace-pre-wrap">
+                        {sandboxOutput.stdout}
+                      </pre>
+                    )}
+
+                    {sandboxOutput.figures && sandboxOutput.figures.length > 0 && (
+                      <div className="grid gap-3">
+                        {sandboxOutput.figures.map((b64, fIdx) => (
+                          <img
+                            key={fIdx}
+                            src={`data:image/png;base64,${b64}`}
+                            alt={`Sandbox Plot ${fIdx + 1}`}
+                            className="rounded-lg border border-slate-700 bg-white max-w-full"
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {analysisResult.interpretation_guide && (

@@ -16,7 +16,7 @@ def test_alembic_initial_revision_and_metadata_tables():
 
     script = ScriptDirectory.from_config(alembic_cfg)
     heads = script.get_heads()
-    assert heads == ["0003_sprint_d_rag_workspace"]
+    assert heads == ["0004_sprint_f_sandbox_telemetry"]
 
     expected_tables = {
         "users",
@@ -31,5 +31,6 @@ def test_alembic_initial_revision_and_metadata_tables():
         "search_queries",
         "sjr_journals",
         "workspace_messages",
+        "llm_usage_logs",
     }
     assert expected_tables.issubset(set(Base.metadata.tables.keys()))

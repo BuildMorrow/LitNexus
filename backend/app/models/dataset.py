@@ -31,6 +31,7 @@ class DatasetProfile(Base):
     columns_metadata: Mapped[list] = mapped_column(JSONB, default=list)
     missing_value_summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     sample_preview: Mapped[list] = mapped_column(JSONB, default=list)
+    raw_csv_text: Mapped[str | None] = mapped_column(Text)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

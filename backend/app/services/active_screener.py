@@ -28,8 +28,8 @@ class ActiveLearningScreener:
 
     def __init__(
         self,
-        include_threshold: float = 0.85,
-        exclude_threshold: float = 0.15,
+        include_threshold: float = 0.80,
+        exclude_threshold: float = 0.20,
     ) -> None:
         self.include_threshold = include_threshold
         self.exclude_threshold = exclude_threshold
@@ -42,7 +42,7 @@ class ActiveLearningScreener:
         self.classifier = LogisticRegression(
             class_weight="balanced",
             max_iter=1000,
-            C=1.0,
+            C=3.5,
         )
 
     @staticmethod

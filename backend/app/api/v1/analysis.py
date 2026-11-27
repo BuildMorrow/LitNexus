@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,25 +15,28 @@ from app.schemas.dataset import (
     DatasetIngestRequest,
     DatasetProfileOut,
 )
+from app.services.code_sandbox import (
+    CodeExecutionRequest,
+    CodeExecutionResponse,
+    code_sandbox,
+)
 from app.services.data_analysis_advisor import data_analysis_advisor
 from app.services.data_profiler import data_profiler
 
 router = APIRouter(prefix="/projects/{project_id}/analysis", tags=["data-analysis"])
 
 
-@router.post("/datasets", response_model=DatasetProfileOut, status_code=status.HTTP_201_CREATED)
-async def upload_and_profile_dataset(
-    payload: DatasetIngestRequest,
-    project: ResearchProject = Depends(get_owned_project),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Upload and profile an empirical dataset (CSV) for initial exploratory data analysis.
-    Extracts column metadata, data types, missing value ratios, and sample preview.
-    """
+async def _profile_and_save_dataset(
+    db: AsyncSession,
+    project: ResearchProject,
+    *,
+    dataset_name: str,
+    description: str | None,
+    csv_raw_text: str,
+) -> DatasetProfileOut:
     try:
         row_count, col_count, cols_meta, missing_summary, preview = (
-            data_profiler.parse_and_profile_csv(payload.csv_raw_text)
+            data_profiler.parse_and_profile_csv(csv_raw_text)
         )
     except Exception as exc:
         raise HTTPException(
@@ -43,13 +46,14 @@ async def upload_and_profile_dataset(
 
     dataset_profile = DatasetProfile(
         project_id=project.id,
-        dataset_name=payload.dataset_name,
-        description=payload.description,
+        dataset_name=dataset_name,
+        description=description,
         row_count=row_count,
         column_count=col_count,
         columns_metadata=[c.model_dump() for c in cols_meta],
         missing_value_summary=missing_summary,
         sample_preview=preview,
+        raw_csv_text=csv_raw_text,
     )
 
     db.add(dataset_profile)
@@ -67,6 +71,42 @@ async def upload_and_profile_dataset(
         missing_value_summary=dataset_profile.missing_value_summary,
         sample_preview=dataset_profile.sample_preview,
         created_at=dataset_profile.created_at,
+    )
+
+
+@router.post("/datasets", response_model=DatasetProfileOut, status_code=status.HTTP_201_CREATED)
+async def upload_and_profile_dataset(
+    payload: DatasetIngestRequest,
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Profile raw CSV text for initial exploratory data analysis."""
+    return await _profile_and_save_dataset(
+        db,
+        project,
+        dataset_name=payload.dataset_name,
+        description=payload.description,
+        csv_raw_text=payload.csv_raw_text,
+    )
+
+
+@router.post("/datasets/upload-file", response_model=DatasetProfileOut, status_code=status.HTTP_201_CREATED)
+async def upload_csv_file_dataset(
+    file: UploadFile = File(...),
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a local CSV file, profile schema/missingness, and store for sandbox execution."""
+    raw_bytes = await file.read()
+    if not raw_bytes or len(raw_bytes) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="CSV file is empty or exceeds 10MB limit.")
+    csv_text = raw_bytes.decode("utf-8-sig", errors="replace")
+    return await _profile_and_save_dataset(
+        db,
+        project,
+        dataset_name=file.filename or "uploaded_dataset.csv",
+        description="Uploaded CSV file",
+        csv_raw_text=csv_text,
     )
 
 
@@ -105,10 +145,7 @@ async def advise_data_analysis(
     project: ResearchProject = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Recommend appropriate statistical/ML analysis methods, generate executable Python code,
-    and formulate interpretation guidelines with rigorous warnings on data limitations (N < 30, imbalance, missingness).
-    """
+    """Recommend statistical/ML methods, generate Python code, and enforce data limitation warnings."""
     result = await db.execute(
         select(DatasetProfile).where(
             DatasetProfile.id == dataset_id,
@@ -123,14 +160,11 @@ async def advise_data_analysis(
         )
 
     cols_meta = [ColumnMeta(**c) for c in dataset.columns_metadata]
-
-    # Rule-based limitation inspection
     risk_level, rule_warnings = data_profiler.inspect_limitations(
         row_count=dataset.row_count,
         columns_meta=cols_meta,
     )
 
-    # Advisor synthesizes methodology and executable code
     (
         recommended_methods,
         code,
@@ -145,7 +179,6 @@ async def advise_data_analysis(
         risk_level=risk_level,
     )
 
-    # Persist session
     session_record = AnalysisSession(
         project_id=project.id,
         dataset_id=dataset.id,
@@ -168,4 +201,33 @@ async def advise_data_analysis(
         data_limitations=combined_warnings,
         suggested_python_code=code,
         interpretation_guide=interpretation,
+    )
+
+
+@router.post("/datasets/{dataset_id}/execute", response_model=CodeExecutionResponse)
+async def execute_dataset_sandbox_code(
+    dataset_id: uuid.UUID,
+    payload: CodeExecutionRequest,
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Execute Python EDA code inside an AST-guarded isolated sandbox with dataset preloaded as `df`."""
+    result = await db.execute(
+        select(DatasetProfile).where(
+            DatasetProfile.id == dataset_id,
+            DatasetProfile.project_id == project.id,
+        )
+    )
+    dataset = result.scalar_one_or_none()
+    if not dataset:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dataset profile not found in project.",
+        )
+
+    csv_text = dataset.raw_csv_text or ""
+    return await code_sandbox.execute_code_async(
+        code=payload.code,
+        csv_text=csv_text,
+        timeout_seconds=payload.timeout_seconds,
     )
