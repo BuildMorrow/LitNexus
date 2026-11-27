@@ -734,6 +734,8 @@ p_08,49,19.3,69,0.97,low`)
 
           {activeTab === 'draft' && (
             <DraftExportTab
+              projectId={selectedProjectId}
+              isDemoMode={isDemoMode}
               draftReport={draftReport}
               isGeneratingDraft={isGeneratingDraft}
               draftFormat={draftFormat}

@@ -20,3 +20,15 @@ export async function apiRequest(path, options = {}) {
   }
   return res.json()
 }
+
+export async function apiDownloadBlob(path) {
+  const token = localStorage.getItem('litnexus_token')
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(err.detail || 'Download failed')
+  }
+  return res.blob()
+}

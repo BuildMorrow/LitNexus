@@ -1,4 +1,14 @@
+import { useMemo, useState } from 'react'
+import { Background, Controls, MarkerType, ReactFlow } from '@xyflow/react'
+import '@xyflow/react/dist/style.css'
 import { Bot, GitCompare, Network, Sparkles } from 'lucide-react'
+
+const EDGE_COLORS = {
+  contradicts: '#f43f5e',
+  assumption_mismatch: '#f59e0b',
+  refines: '#38bdf8',
+  supports: '#10b981',
+}
 
 export default function ConflictGraphTab({
   isAnalyzingConflicts,
@@ -6,19 +16,84 @@ export default function ConflictGraphTab({
   isLoadingGraph,
   graphData,
 }) {
+  const [selectedEdgeId, setSelectedEdgeId] = useState(null)
+
+  const { flowNodes, flowEdges } = useMemo(() => {
+    const nodes = graphData.nodes || []
+    const edges = graphData.edges || []
+
+    const computedNodes = nodes.map((n, idx) => {
+      const col = idx % 3
+      const row = Math.floor(idx / 3)
+      const qColor =
+        n.quartile === 'Q1'
+          ? '#f59e0b'
+          : n.quartile === 'Q2'
+          ? '#38bdf8'
+          : '#818cf8'
+      return {
+        id: String(n.id),
+        position: { x: 40 + col * 290, y: 30 + row * 165 },
+        data: {
+          label: (
+            <div className="text-left space-y-1">
+              <div className="flex items-center justify-between gap-2 text-[10px] font-bold">
+                <span style={{ color: qColor }}>{n.quartile || 'Scholar'}</span>
+                <span className="text-slate-400">{n.year || ''}</span>
+              </div>
+              <div className="text-[11px] font-semibold text-white leading-snug line-clamp-2">
+                {n.paper_title}
+              </div>
+              <div className="text-[10px] text-indigo-300 line-clamp-2">{n.label}</div>
+            </div>
+          ),
+        },
+        style: {
+          width: 245,
+          background: '#0f172a',
+          color: '#f8fafc',
+          border: `1.5px solid ${qColor}`,
+          borderRadius: '10px',
+          padding: '10px',
+          fontSize: '11px',
+        },
+      }
+    })
+
+    const computedEdges = edges.map((e, idx) => {
+      const eid = String(e.id || idx)
+      const stroke = EDGE_COLORS[e.relation_type] || '#64748b'
+      return {
+        id: eid,
+        source: String(e.source),
+        target: String(e.target),
+        label: `${e.relation_type} (${Math.round((e.confidence || 0.8) * 100)}%)`,
+        animated: e.relation_type === 'contradicts',
+        style: { stroke, strokeWidth: selectedEdgeId === eid ? 3 : 2 },
+        labelStyle: { fill: '#f8fafc', fontSize: 10, fontWeight: 700 },
+        labelBgStyle: { fill: '#0f172a', fillOpacity: 0.85 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: stroke },
+      }
+    })
+
+    return { flowNodes: computedNodes, flowEdges: computedEdges }
+  }, [graphData, selectedEdgeId])
+
+  const selectedEdge =
+    (graphData.edges || []).find((e, idx) => String(e.id || idx) === selectedEdgeId) || null
+
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-rose-400 font-semibold text-sm">
             <Network className="h-4 w-4" />
-            <span>Đấu Trường Tranh Biện Học Thuật &bull; Phát Hiện Mâu Thuẫn Thực Nghiệm &amp; Đề Xuất Đề Tài Mới</span>
+            <span>Đấu Trường Tranh Biện Học Thuật &bull; Interactive Conflict Graph &amp; Research Gaps</span>
           </div>
           <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Hệ thống 3-Agent đối chiếu biện chứng giữa các bài báo cốt lõi (Included) để phân loại các cạnh đối lập
-            (<span className="text-rose-400 font-medium">Contradicts</span>,{' '}
-            <span className="text-amber-400 font-medium">Assumption Mismatch</span>)
-            và tổng hợp ra Top Khoảng trống nghiên cứu (Research Gaps) có tính mới cao.
+            Hệ thống 3-Agent trích xuất luận điểm toàn văn có kiểm chứng trích dẫn (Verbatim Gate), dùng thuật toán
+            tối ưu O(k&middot;N) bắt cặp đối chiếu (<span className="text-rose-400 font-medium">Contradicts</span>,{' '}
+            <span className="text-amber-400 font-medium">Assumption Mismatch</span>) và vẽ đồ thị tương tác.
           </p>
         </div>
 
@@ -55,6 +130,47 @@ export default function ConflictGraphTab({
             </div>
           </div>
 
+          {/* Interactive ReactFlow Network Canvas */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between text-xs">
+              <span className="font-semibold text-white">
+                Đồ thị Tranh biện Tương tác (Bấm vào cạnh nối để xem chi tiết tranh luận)
+              </span>
+              <div className="flex items-center gap-3 text-[10px]">
+                <span className="text-rose-400">&bull; Contradicts</span>
+                <span className="text-amber-400">&bull; Assumption Mismatch</span>
+                <span className="text-cyan-400">&bull; Refines</span>
+                <span className="text-emerald-400">&bull; Supports</span>
+              </div>
+            </div>
+            <div style={{ height: 340, width: '100%' }}>
+              <ReactFlow
+                nodes={flowNodes}
+                edges={flowEdges}
+                fitView
+                onEdgeClick={(_evt, edge) => setSelectedEdgeId(edge.id)}
+              >
+                <Background color="#1e293b" gap={18} />
+                <Controls />
+              </ReactFlow>
+            </div>
+          </div>
+
+          {selectedEdge && (
+            <div className="rounded-xl border border-rose-500/40 bg-rose-950/10 p-5 space-y-2">
+              <div className="text-xs font-bold uppercase text-rose-300">
+                Chi tiết Cạnh Đang Chọn: {selectedEdge.relation_type} ({Math.round((selectedEdge.confidence || 0.8) * 100)}%)
+              </div>
+              <div className="text-xs text-slate-200">{selectedEdge.debate_summary}</div>
+              {selectedEdge.root_cause_hypothesis && (
+                <div className="text-xs text-amber-200/90 italic">
+                  Root Cause: {selectedEdge.root_cause_hypothesis}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Dialectical Edges Cards */}
           <div className="space-y-3">
             <h4 className="text-sm font-semibold text-white flex items-center gap-2">
               <GitCompare className="h-4 w-4 text-rose-400" />
@@ -64,7 +180,8 @@ export default function ConflictGraphTab({
             {graphData.edges.map((e, idx) => (
               <div
                 key={idx}
-                className="rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-3 hover:border-slate-700 transition"
+                onClick={() => setSelectedEdgeId(String(e.id || idx))}
+                className="cursor-pointer rounded-xl border border-slate-800 bg-slate-900/60 p-5 space-y-3 hover:border-slate-700 transition"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
                   <div className="flex items-center gap-2">
