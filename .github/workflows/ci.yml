@@ -23,9 +23,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Run Ruff lint
-        run: ruff check app tests
+        run: ruff check app tests scripts eval
       - name: Run Pytest suite
         run: pytest tests/ -q
+      - name: Run offline evaluation benchmark
+        run: python -m eval.run_eval
 
   frontend:
     name: Frontend Production Build

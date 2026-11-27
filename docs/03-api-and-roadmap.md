@@ -12,37 +12,61 @@
 | `GET` | `/projects` | Lấy danh sách project của user đang đăng nhập | ✅ Sẵn sàng |
 | `POST` | `/projects` | Tạo project nghiên cứu mới (PICO + Criteria) | ✅ Sẵn sàng |
 | `GET` | `/projects/{project_id}` | Lấy chi tiết 1 project (có kiểm tra quyền sở hữu) | ✅ Sẵn sàng |
+| `POST` | `/projects/assist/scope-optimizer` | Agent 1 (Research Setup): Phân tích & tối ưu phạm vi đề tài | ✅ Sẵn sàng |
+| `POST` | `/projects/assist/criteria-generator` | Agent 2 (Research Setup): Sinh tiêu chí Inclusion / Exclusion chuẩn SLR | ✅ Sẵn sàng |
+| `POST` | `/projects/assist/pico-query` | Agent 3 (Research Setup): Phân rã PICO & tạo truy vấn Boolean học thuật | ✅ Sẵn sàng |
 | `GET` | `/projects/{project_id}/papers` | Lấy danh sách bài báo (ưu tiên bài `uncertain` lên đầu) | ✅ Sẵn sàng |
-| `POST` | `/projects/{project_id}/search` | Tìm kiếm bài báo trên OpenAlex & lưu DB | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/search` | Tìm kiếm bài báo trên OpenAlex, đối chiếu SJR (`Q1`–`Q4`) & lưu DB | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/search/snowball` | Mở rộng tập bài báo 2 chiều (Backward & Forward Citation Snowballing) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/search/history` | Lịch sử các truy vấn tìm kiếm & snowballing của project | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/papers/{paper_id}/ingest-pdf` | Tải tự động Open Access PDF, bóc tách chunk & vector hóa vào `pgvector` | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/papers/{paper_id}/upload-pdf` | Tải trực tiếp file PDF cục bộ, bóc tách chunk & lưu vector vào `pgvector` | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/papers/{paper_id}/pdf-highlight` | Tô sáng nguyên văn trên PDF (PyMuPDF Bounding Box + PNG Base64 Highlight) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/screening/quality-gate` | Kiểm tra cổng chất lượng Grounding Gate ($\ge 80\%$) & số bài báo tối thiểu | ✅ Sẵn sàng |
 | `PATCH` | `/projects/{project_id}/screening/papers/{paper_id}/label` | Gắn nhãn thủ công (`included` / `excluded`) | ✅ Sẵn sàng |
-| `POST` | `/projects/{project_id}/screening/run-active-learning` | Chạy vòng lặp ML huấn luyện & phân loại tự động | ✅ Sẵn sàng |
-| `GET` | `/projects/{project_id}/conflicts` | Xem các cạnh mâu thuẫn & Research Gaps đã lưu | ✅ Sẵn sàng |
-| `POST` | `/projects/{project_id}/conflicts/analyze` | Chạy pipeline 3 Agent phân tích mâu thuẫn & gợi ý đề tài | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/screening/papers/{paper_id}/hitl-override` | Người dùng quyết định cuối cùng (Human-in-the-Loop Override) | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/screening/run-active-learning` | Chạy vòng lặp ML (`TF-IDF + LogisticRegression`) & phân loại tự động | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/screening/auto-label-uncertain` | Dùng LLM chấm điểm tự động các bài `uncertain` | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/screening/dual-peer-screen` | Sàng lọc song song 2 Agent + Grounding Verifier & Quality Gate 80% | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/workspace/messages` | Lấy lịch sử hội thoại Hybrid RAG của project | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/workspace/chat` | Truy vấn Hybrid RRF RAG (`pgvector` + Lexical + Guardrail + Citations) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts` | Xem các cạnh mâu thuẫn (`ConflictEdge`) & `ResearchGap` đã lưu | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/conflicts/analyze` | Chạy pipeline 3 Agent (Full-Text Claim Extraction + Verbatim Gate) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts/comparative-matrix` | Bảng tổng hợp bằng chứng (Evidence Synthesis Matrix) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts/kpi-metrics` | Chỉ số hiệu năng SLR (% tiết kiệm token, số giờ tiết kiệm, tỷ lệ tự động) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts/graph` | Lấy dữ liệu đồ thị mâu thuẫn (`nodes`, `edges`, `research_gaps`) cho React Flow | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts/export-draft` | Xuất bản thảo Markdown, LaTeX (`.tex`), Quarto (`.qmd`), BibTeX & PRISMA 2020 SVG | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts/export-xlsx` | Xuất sổ tính Excel `.xlsx` 3 sheet (*Papers*, *Claims & Conflicts*, *Gaps*) | ✅ Sẵn sàng |
+| `GET` | `/projects/{project_id}/conflicts/usage-observability` | Thống kê lượng token sử dụng, chi phí ước tính & token tiết kiệm nhờ Active Learning | ✅ Sẵn sàng |
+| `GET/POST` | `/projects/{project_id}/analysis/datasets` | Quản lý & phân tích hồ sơ bộ dữ liệu định lượng (CSV) | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/analysis/datasets/upload-file` | Tải file `.csv` để tự động kiểm định schema & missingness | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/analysis/datasets/{dataset_id}/advise` | Cố vấn phương pháp thống kê / ML, cảnh báo rủi ro dữ liệu & sinh mã Python | ✅ Sẵn sàng |
+| `POST` | `/projects/{project_id}/analysis/datasets/{dataset_id}/execute` | Thực thi mã Python EDA trong AST-Guarded Code Sandbox an toàn | ✅ Sẵn sàng |
 
 *(Sau khi chạy backend, bạn có thể test toàn bộ các endpoint này trực quan qua Swagger UI tại `http://localhost:8000/docs`)*
 
 ---
 
-## 2. Lộ trình Triển khai Tiếp theo (Development Roadmap)
+## 2. Lộ trình Triển khai (Development Roadmap — Đã Hoàn Thành Sprints A–F)
 
-Để biến khung nền tảng hiện tại thành sản phẩm hoàn chỉnh, bạn nên triển khai lần lượt theo 4 Sprint ngắn:
+Toàn bộ lộ trình 4 Sprint gốc và 6 Sprint nâng cao (Sprint A $\to$ Sprint F) đã được hoàn thiện và kiểm thử tự động:
 
-### Sprint 1: Hoàn thiện Luồng Sàng lọc & LLM Batch Screening
-- [ ] Thêm API `POST /projects/{id}/screening/auto-label-uncertain`: Dùng `llm_router` để tự động chấm điểm top 10 bài báo có `al_uncertainty_score` cao nhất (thay vì user phải tự chấm hết bài phân vân).
-- [ ] Tích hợp bộ tra cứu **SCImago Journal Rank (SJR)** từ file CSV offline vào bảng tham chiếu để gắn nhãn `Q1`, `Q2`, `Q3`, `Q4` cho mỗi bài báo ngay khi search từ OpenAlex.
-- [ ] Xây dựng UI **Auth Modal + Project Setup (PICO Wizard)** và **Active Screening Board** trên React (hiển thị thanh tỷ lệ tiết kiệm token & nút duyệt nhanh 1-click).
+### Sprint 1 (Sprint B & C): Hoàn thiện Luồng Thiết lập, Sàng lọc & Dual-Agent Peer Screening
+- [x] Bộ 3 Agent Thiết lập Nghiên cứu (`Scope Optimizer`, `Criteria Generator`, `PICO & Boolean Query`) và 2-Way OpenAlex Citation Snowballing.
+- [x] Tích hợp bộ tra cứu **SCImago Journal Rank (SJR)** từ file CSV offline vào bảng `sjr_journals` để gắn nhãn `Q1`, `Q2`, `Q3`, `Q4` và `h_index`.
+- [x] Xây dựng **Dual-Agent Peer Screener** kèm **Deterministic Grounding Verifier**, cổng kiểm soát chất lượng 80% (**Quality Gate**) và **Human-in-the-Loop (HITL) Override**.
 
-### Sprint 2: Trực quan hóa Đồ thị Mâu thuẫn (Conflict Graph UI)
-- [ ] Bổ sung API trả về dữ liệu dạng Graph (`nodes` = các bài báo & claims, `edges` = `contradicts` / `supports` / `assumption_mismatch`) kèm tiêu đề bài báo để Frontend dễ vẽ.
-- [ ] Tích hợp thư viện vẽ đồ thị (như `react-force-graph` hoặc `@xyflow/react`) để người dùng bấm vào cạnh màu đỏ xem chi tiết cuộc tranh biện giữa 2 bài báo.
-- [ ] Tối ưu chi phí Agent 2 (`cross_examine_claims`): Thay vì so sánh mọi cặp $O(N^2)$, dùng embedding của các claim để chỉ bắt cặp những claim có độ tương đồng ngữ nghĩa cao về chủ đề/phương pháp trước khi cho tranh biện.
+### Sprint 2 (Sprint E): Trực quan hóa Đồ thị Mâu thuẫn (Conflict Graph UI)
+- [x] API `/projects/{id}/conflicts/graph` trả về dữ liệu dạng Graph (`nodes`, `edges`, `research_gaps`) kèm chi tiết tranh biện.
+- [x] Tích hợp `@xyflow/react` trong `ConflictGraphTab.jsx` với bộ lọc loại xung đột và drawer xem chi tiết tranh biện & nguyên nhân gốc rễ.
+- [x] Tối ưu bắt cặp ngữ nghĩa trong `conflict_engine.py` để giảm độ phức tạp $O(N^2)$ trước khi gọi Agent 2.
 
-### Sprint 3: PDF Full-Text Ingestion & Verifiable Citations
-- [ ] Viết `pdf_processor.py` dùng **PyMuPDF (`fitz`)** để đọc file PDF bài báo (lưu số trang `page_number` và tiêu đề mục `section_title`).
-- [ ] Tạo vector embedding và lưu vào bảng `paper_chunks` (đã thiết kế sẵn cột `Vector(1536)` trong `pgvector`).
-- [ ] Nâng cấp Agent 1 (`extract_paper_claims`) đọc từ **toàn văn PDF** thay vì chỉ đọc Abstract, kèm số trang chính xác chứa bằng chứng.
+### Sprint 3 (Sprint D): PDF Full-Text Ingestion, Hybrid RAG & Verifiable Citations
+- [x] `pdf_processor.py` dùng **PyMuPDF (`fitz`)** đọc toàn văn PDF, chia chunk theo trang/mục và tô sáng nguyên văn bằng chứng (`get_evidence_highlight_data` xuất toạ độ Bounding Box + ảnh PNG Base64).
+- [x] Lưu vector embedding vào bảng `paper_chunks` (`pgvector`) và truy vấn bằng **Hybrid RRF (Reciprocal Rank Fusion)** kết hợp Cosine Similarity + Lexical Overlap + **RAG Guardrail**.
+- [x] Nâng cấp Agent 1 (`extract_paper_claims`) đọc ưu tiên từ toàn văn `PaperChunk` và kiểm chứng qua **Verbatim Quote Gate**.
 
-### Sprint 4: Xuất báo cáo chuẩn PRISMA 2020 & Deploy
-- [ ] Tự động tính toán số liệu và vẽ sơ đồ **PRISMA Flow Diagram** (SVG) dựa trên số lượng bài ở từng bước (*Identified $\to$ Screened $\to$ Excluded $\to$ Included*).
-- [ ] Xuất dữ liệu ra `.bib` (BibTeX), `.xlsx` (Excel), và báo cáo Markdown tổng hợp Research Gaps.
-- [ ] Thiết lập Alembic migrations chuẩn cho Production và GitHub Actions CI (chạy `ruff` + `pytest` tự động mỗi lần push).
+### Sprint 4 (Sprint A, E & F): Xuất báo cáo chuẩn PRISMA 2020, Python EDA Sandbox & CI/CD
+- [x] Tự động tính toán số liệu và vẽ sơ đồ **PRISMA 2020 Flow Diagram** (`.svg`) và xuất file Excel `.xlsx` 3 sheet chuyên nghiệp (`openpyxl`).
+- [x] Tích hợp **AST-Guarded Python EDA Code Sandbox** (`code_sandbox.py`), bảng giám sát chi phí/độ trễ `llm_usage_logs` (`telemetry.py`), và bộ benchmark đánh giá định lượng (`python -m eval.run_eval`).
+- [x] Thiết lập Async Alembic migrations (`0001` $\to$ `0004`) và GitHub Actions CI (`ruff` + `pytest` + `eval` + `npm run build`).
