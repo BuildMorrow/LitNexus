@@ -16,7 +16,7 @@ def test_alembic_initial_revision_and_metadata_tables():
 
     script = ScriptDirectory.from_config(alembic_cfg)
     heads = script.get_heads()
-    assert heads == ["0001_initial_schema"]
+    assert heads == ["0002_sprint_b_setup_snowball_sjr"]
 
     expected_tables = {
         "users",
@@ -28,5 +28,7 @@ def test_alembic_initial_revision_and_metadata_tables():
         "research_gaps",
         "dataset_profiles",
         "analysis_sessions",
+        "search_queries",
+        "sjr_journals",
     }
     assert expected_tables.issubset(set(Base.metadata.tables.keys()))

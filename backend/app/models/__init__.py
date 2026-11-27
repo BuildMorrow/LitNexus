@@ -3,6 +3,8 @@ from app.models.conflict import ConflictEdge, EdgeRelationType, PaperClaim, Rese
 from app.models.dataset import AnalysisSession, DatasetProfile, RiskLevel
 from app.models.paper import Paper, ScreeningSource, ScreeningStatus
 from app.models.project import ResearchProject
+from app.models.search_query import SearchQuery
+from app.models.sjr import SJRJournal
 from app.models.user import User
 
 __all__ = [
@@ -19,4 +21,6 @@ __all__ = [
     "DatasetProfile",
     "AnalysisSession",
     "RiskLevel",
+    "SearchQuery",
+    "SJRJournal",
 ]

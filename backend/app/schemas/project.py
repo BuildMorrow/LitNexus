@@ -20,6 +20,13 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class SetupAssistRequest(BaseModel):
+    idea: str = Field(min_length=3, max_length=2000)
+    domain: str = ""
+    inclusion_criteria: list[str] = Field(default_factory=list)
+    exclusion_criteria: list[str] = Field(default_factory=list)
+
+
 class ProjectCreate(BaseModel):
     title: str = Field(min_length=2, max_length=255)
     domain: str | None = None

@@ -41,3 +41,6 @@ class ResearchProject(Base):
     datasets: Mapped[list["DatasetProfile"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    search_queries: Mapped[list["SearchQuery"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )

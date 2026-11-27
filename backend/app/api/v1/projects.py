@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,7 +6,15 @@ from app.api.deps import get_current_user, get_owned_project
 from app.core.database import get_db
 from app.models.project import ResearchProject
 from app.models.user import User
-from app.schemas.project import ProjectCreate, ProjectOut
+from app.schemas.project import ProjectCreate, ProjectOut, SetupAssistRequest
+from app.services.setup_agents import (
+    CriteriaGenerationResult,
+    PICOQueryResult,
+    ScopeAnalysisResult,
+    run_criteria_generator,
+    run_pico_query_generator,
+    run_scope_optimizer,
+)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -48,3 +56,50 @@ async def create_project(
 @router.get("/{project_id}", response_model=ProjectOut)
 async def get_project(project: ResearchProject = Depends(get_owned_project)):
     return project
+
+
+@router.post("/assist/scope-optimizer", response_model=ScopeAnalysisResult)
+async def assist_scope_optimizer(
+    payload: SetupAssistRequest,
+    _current_user: User = Depends(get_current_user),
+):
+    """Evaluate topic scope width and propose sharpened academic research questions."""
+    try:
+        return await run_scope_optimizer(idea=payload.idea, research_field=payload.domain)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Scope Optimizer agent failed: {exc}"
+        ) from exc
+
+
+@router.post("/assist/criteria-generator", response_model=CriteriaGenerationResult)
+async def assist_criteria_generator(
+    payload: SetupAssistRequest,
+    _current_user: User = Depends(get_current_user),
+):
+    """Generate PRISMA 2020 inclusion and exclusion criteria for the research topic."""
+    try:
+        return await run_criteria_generator(idea=payload.idea, research_field=payload.domain)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Criteria Generator agent failed: {exc}"
+        ) from exc
+
+
+@router.post("/assist/pico-query", response_model=PICOQueryResult)
+async def assist_pico_query(
+    payload: SetupAssistRequest,
+    _current_user: User = Depends(get_current_user),
+):
+    """Extract English PICO structure and Boolean search query."""
+    try:
+        return await run_pico_query_generator(
+            idea=payload.idea,
+            research_field=payload.domain,
+            inclusion_criteria=payload.inclusion_criteria,
+            exclusion_criteria=payload.exclusion_criteria,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"PICO Query agent failed: {exc}"
+        ) from exc
