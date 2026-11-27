@@ -2,8 +2,9 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
 export async function apiRequest(path, options = {}) {
   const token = localStorage.getItem('litnexus_token')
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   }

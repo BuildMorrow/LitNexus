@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BarChart3, FileDown, FileSpreadsheet, Filter, Network, Plus, Wand2 } from 'lucide-react'
+import { BarChart3, FileDown, FileSpreadsheet, Filter, MessageSquare, Network, Plus, Wand2 } from 'lucide-react'
 import { apiRequest } from './services/api'
 import AuthScreen from './components/auth/AuthScreen'
 import Header from './components/layout/Header'
@@ -11,6 +11,7 @@ import EvidenceMatrixTab from './components/matrix/EvidenceMatrixTab'
 import DataAnalysisTab from './components/analysis/DataAnalysisTab'
 import ConflictGraphTab from './components/conflicts/ConflictGraphTab'
 import DraftExportTab from './components/export/DraftExportTab'
+import WorkspaceRagTab from './components/workspace/WorkspaceRagTab'
 import {
   DEMO_ANALYSIS_RESULT,
   DEMO_DATASET,
@@ -22,6 +23,7 @@ import {
   DEMO_PROJECT,
   DEMO_QUALITY_GATE,
   DEMO_SEARCH_HISTORY,
+  DEMO_WORKSPACE_MESSAGES,
 } from './data/demoData'
 
 const DEMO_TOKEN = 'mock-demo-token-for-prototype'
@@ -104,6 +106,9 @@ p_08,49,19.3,69,0.97,low`)
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false)
   const [draftFormat, setDraftFormat] = useState('md')
 
+  // Workspace RAG Chat State
+  const [workspaceMessages, setWorkspaceMessages] = useState([])
+
   const activeProject = projects.find((p) => p.id === selectedProjectId) || null
 
   useEffect(() => {
@@ -126,6 +131,7 @@ p_08,49,19.3,69,0.97,low`)
       else if (activeTab === 'analysis') loadProjectDatasets(selectedProjectId)
       else if (activeTab === 'conflicts') loadConflictGraph(selectedProjectId)
       else if (activeTab === 'draft') loadDraftReport(selectedProjectId)
+      else if (activeTab === 'workspace') loadWorkspaceMessages(selectedProjectId)
     }
   }, [selectedProjectId, activeTab, isDemoMode])
 
@@ -171,6 +177,7 @@ p_08,49,19.3,69,0.97,low`)
     setAnalysisResult(DEMO_ANALYSIS_RESULT)
     setGraphData(DEMO_GRAPH_DATA)
     setDraftReport(DEMO_DRAFT_REPORT)
+    setWorkspaceMessages(DEMO_WORKSPACE_MESSAGES)
   }
 
   async function loadProjects() {
@@ -279,6 +286,14 @@ p_08,49,19.3,69,0.97,low`)
       alert('Conflict Analysis failed: ' + err.message)
     } finally {
       setIsAnalyzingConflicts(false)
+    }
+  }
+
+  async function loadWorkspaceMessages(pId) {
+    try {
+      setWorkspaceMessages(await apiRequest(`/projects/${pId}/workspace/messages`))
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -558,7 +573,8 @@ p_08,49,19.3,69,0.97,low`)
     { id: 'matrix', label: '2. Ma trận Bằng chứng', icon: FileSpreadsheet, accent: 'border-indigo-500 text-indigo-400' },
     { id: 'analysis', label: '3. Phân tích Dữ liệu', icon: BarChart3, iconColor: 'text-emerald-400', accent: 'border-indigo-500 text-indigo-400' },
     { id: 'conflicts', label: '4. Đồ thị Mâu thuẫn', icon: Network, iconColor: 'text-rose-400', accent: 'border-rose-500 text-rose-400' },
-    { id: 'draft', label: '5. Xuất Bản thảo PRISMA', icon: FileDown, iconColor: 'text-cyan-400', accent: 'border-indigo-500 text-indigo-400' },
+    { id: 'workspace', label: '5. Hỏi đáp PDF & Xác minh (RAG)', icon: MessageSquare, iconColor: 'text-indigo-400', accent: 'border-indigo-500 text-indigo-400' },
+    { id: 'draft', label: '6. Xuất Bản thảo PRISMA', icon: FileDown, iconColor: 'text-cyan-400', accent: 'border-indigo-500 text-indigo-400' },
   ]
 
   return (
@@ -702,6 +718,17 @@ p_08,49,19.3,69,0.97,low`)
               onRunConflictAnalysis={handleRunConflictAnalysis}
               isLoadingGraph={isLoadingGraph}
               graphData={graphData}
+            />
+          )}
+
+          {activeTab === 'workspace' && (
+            <WorkspaceRagTab
+              projectId={selectedProjectId}
+              papers={papers}
+              messages={workspaceMessages}
+              setMessages={setWorkspaceMessages}
+              isDemoMode={isDemoMode}
+              onReloadPapers={() => loadProjectPapers(selectedProjectId)}
             />
           )}
 

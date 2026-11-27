@@ -120,6 +120,47 @@ export const DEMO_SEARCH_HISTORY = [
   },
 ]
 
+export const DEMO_WORKSPACE_MESSAGES = [
+  {
+    id: 'wm-1',
+    role: 'user',
+    content: 'So sánh F1-score và độ ổn định của 1D CNN nhẹ với phiên bản lượng tử hóa?',
+    citations: [],
+    guardrail: {},
+  },
+  {
+    id: 'wm-2',
+    role: 'assistant',
+    content:
+      'Mô hình 1D CNN nhẹ đạt 98.2% F1 trên tập MIT-BIH với 45k tham số và độ trễ suy luận 18ms [1]. Trong điều kiện đeo thực tế có nhiễu chuyển động, mô hình 1D lượng tử hóa 8-bit duy trì 97.8% độ nhạy với mức tiêu thụ 1.2mW [2].',
+    citations: [
+      {
+        index: 1,
+        paper_id: 'p1',
+        paper_title: 'Real-Time ECG Arrhythmia Classification Using Lightweight 1D Convolutional Neural Networks',
+        page_number: 1,
+        section_title: '3. Experimental Results',
+        excerpt: 'Our lightweight 1D CNN architecture achieves 98.2% F1 on MIT-BIH with only 45k parameters, cutting inference latency to 18ms.',
+      },
+      {
+        index: 2,
+        paper_id: 'p3',
+        paper_title: 'Ultra-low Power Neural Accelerators for Single-Lead Patch Arrhythmia Screening',
+        page_number: 4,
+        section_title: 'Methodology & Benchmarks',
+        excerpt: 'The 8-bit quantized 1D model retained 97.8% sensitivity under continuous ambulatory motion with 1.2mW power draw.',
+      },
+    ],
+    guardrail: {
+      is_safe: true,
+      safety_verdict: 'VERIFIED_HIGH_CONFIDENCE',
+      faithfulness_score: 1.0,
+      hallucination_rate: 0.0,
+      citation_precision: 1.0,
+    },
+  },
+]
+
 export const DEMO_MATRIX_DATA = [
   {
     paper_id: 'p1',
