@@ -75,10 +75,41 @@ export const DEMO_PAPERS = [
     seed_distance: 0,
     al_inclusion_prob: 0.91,
     al_uncertainty_score: 0.18,
+    screening_rationale: {
+      mode: 'dual_peer_review',
+      grounding_score: 1.0,
+      reason: 'Both Inclusive and Strict reviewers confirmed quantized 1D CNN evaluation on single-lead patches.',
+      evidence_quote:
+        'Demonstrating an ultra-compact 1D convolutional model deployed on ARM Cortex-M4 wearable patches with 97.8% sensitivity under noisy motion artifacts.',
+      opinions: [
+        {
+          reviewer_role: 'inclusive',
+          decision: 'included',
+          confidence: 0.94,
+          reason: 'Uses 1D CNN directly on wearable single-lead ECG patches.',
+        },
+        {
+          reviewer_role: 'strict',
+          decision: 'included',
+          confidence: 0.89,
+          reason: 'Reports quantitative sensitivity (97.8%) under motion artifacts.',
+        },
+      ],
+    },
     abstract:
       'Demonstrating an ultra-compact 1D convolutional model deployed on ARM Cortex-M4 wearable patches with 97.8% sensitivity under noisy motion artifacts.',
   },
 ]
+
+export const DEMO_QUALITY_GATE = {
+  passed: true,
+  grounding_precision: 1.0,
+  grounding_threshold: 0.8,
+  included_count: 8,
+  min_papers: 3,
+  requires_hitl_review: false,
+  warnings: [],
+}
 
 export const DEMO_SEARCH_HISTORY = [
   {

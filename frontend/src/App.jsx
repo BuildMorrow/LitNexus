@@ -20,6 +20,7 @@ import {
   DEMO_MATRIX_DATA,
   DEMO_PAPERS,
   DEMO_PROJECT,
+  DEMO_QUALITY_GATE,
   DEMO_SEARCH_HISTORY,
 } from './data/demoData'
 
@@ -61,9 +62,11 @@ export default function App() {
   const [yearTo, setYearTo] = useState('')
   const [openAccessOnly, setOpenAccessOnly] = useState(false)
 
-  // Active Learning & LLM Batch
+  // Active Learning, Dual-Peer & LLM Batch
   const [isRunningAL, setIsRunningAL] = useState(false)
   const [isRunningLLM, setIsRunningLLM] = useState(false)
+  const [isRunningDualPeer, setIsRunningDualPeer] = useState(false)
+  const [qualityGate, setQualityGate] = useState(null)
 
   // KPI Metrics & Comparative Matrix
   const [kpiMetrics, setKpiMetrics] = useState(null)
@@ -117,6 +120,7 @@ p_08,49,19.3,69,0.97,low`)
     if (selectedProjectId && !isDemoMode) {
       loadProjectPapers(selectedProjectId)
       loadSearchHistory(selectedProjectId)
+      loadQualityGate(selectedProjectId)
       loadKpiMetrics(selectedProjectId)
       if (activeTab === 'matrix') loadComparativeMatrix(selectedProjectId)
       else if (activeTab === 'analysis') loadProjectDatasets(selectedProjectId)
@@ -158,6 +162,7 @@ p_08,49,19.3,69,0.97,low`)
     setProjects([DEMO_PROJECT])
     setSelectedProjectId(DEMO_PROJECT.id)
     setKpiMetrics(DEMO_KPI_METRICS)
+    setQualityGate(DEMO_QUALITY_GATE)
     setPapers(DEMO_PAPERS)
     setSearchHistory(DEMO_SEARCH_HISTORY)
     setMatrixData(DEMO_MATRIX_DATA)
@@ -208,6 +213,14 @@ p_08,49,19.3,69,0.97,low`)
   async function loadSearchHistory(pId) {
     try {
       setSearchHistory(await apiRequest(`/projects/${pId}/search/history`))
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function loadQualityGate(pId) {
+    try {
+      setQualityGate(await apiRequest(`/projects/${pId}/screening/quality-gate`))
     } catch (err) {
       console.error(err)
     }
@@ -472,6 +485,56 @@ p_08,49,19.3,69,0.97,low`)
     }
   }
 
+  async function handleRunDualPeer() {
+    setIsRunningDualPeer(true)
+    try {
+      if (isDemoMode) {
+        await new Promise((res) => setTimeout(res, 600))
+        alert('[Demo Mode] Dual-Agent Peer Screening hoàn tất với Grounding Precision = 100%!')
+        return
+      }
+      const res = await apiRequest(`/projects/${selectedProjectId}/screening/dual-peer-screen`, {
+        method: 'POST',
+        body: JSON.stringify({ limit: 8 }),
+      })
+      setQualityGate(res.quality_gate)
+      alert(
+        `Phản biện mù đôi hoàn tất ${res.processed_count} bài! Bất đồng cần trọng tài: ${res.disagreement_count}. Grounding trung bình: ${(
+          res.avg_grounding_score * 100
+        ).toFixed(0)}%`
+      )
+      await loadProjectPapers(selectedProjectId)
+      await loadKpiMetrics(selectedProjectId)
+    } catch (err) {
+      alert('Dual-Peer screen failed: ' + err.message)
+    } finally {
+      setIsRunningDualPeer(false)
+    }
+  }
+
+  async function handleHitlApprove(paperId) {
+    if (isDemoMode) {
+      setPapers((prev) =>
+        prev.map((p) =>
+          p.id === paperId
+            ? { ...p, screening_rationale: { ...(p.screening_rationale || {}), hitl_approved: true } }
+            : p
+        )
+      )
+      return
+    }
+    try {
+      const updated = await apiRequest(`/projects/${selectedProjectId}/screening/papers/${paperId}/hitl-override`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'approve', note: 'Approved via HITL review' }),
+      })
+      setPapers((prev) => prev.map((p) => (p.id === paperId ? updated : p)))
+      await loadQualityGate(selectedProjectId)
+    } catch (err) {
+      alert('HITL approval failed: ' + err.message)
+    }
+  }
+
   async function handleAutoLabelUncertain() {
     setIsRunningLLM(true)
     try {
@@ -593,10 +656,14 @@ p_08,49,19.3,69,0.97,low`)
               onRunActiveLearning={handleRunActiveLearning}
               isRunningLLM={isRunningLLM}
               onAutoLabelUncertain={handleAutoLabelUncertain}
+              isRunningDualPeer={isRunningDualPeer}
+              onRunDualPeer={handleRunDualPeer}
               isSnowballing={isSnowballing}
               onSnowball={handleSnowball}
+              qualityGate={qualityGate}
               papers={papers}
               onLabelPaper={handleLabelPaper}
+              onHitlApprove={handleHitlApprove}
               onIngestPdf={handleIngestPdf}
               ingestingPaperId={ingestingPaperId}
             />

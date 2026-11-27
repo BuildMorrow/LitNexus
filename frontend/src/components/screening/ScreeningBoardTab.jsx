@@ -1,4 +1,17 @@
-import { Bot, CheckCircle2, FileText, GitBranch, History, Search, XCircle, Zap } from 'lucide-react'
+import { useState } from 'react'
+import {
+  AlertTriangle,
+  Bot,
+  CheckCircle2,
+  FileText,
+  GitBranch,
+  History,
+  Scale,
+  Search,
+  ShieldCheck,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 
 export default function ScreeningBoardTab({
   searchQuery,
@@ -18,17 +31,69 @@ export default function ScreeningBoardTab({
   onRunActiveLearning,
   isRunningLLM,
   onAutoLabelUncertain,
+  isRunningDualPeer,
+  onRunDualPeer,
   isSnowballing,
   onSnowball,
+  qualityGate,
   papers,
   onLabelPaper,
+  onHitlApprove,
   onIngestPdf,
   ingestingPaperId,
 }) {
+  const [expandedAuditId, setExpandedAuditId] = useState(null)
   const includedSeedCount = papers.filter((p) => p.screening_status === 'included').length
 
   return (
     <div className="space-y-6">
+      {/* Quality Gate >= 80% Grounding Banner */}
+      {qualityGate && (
+        <div
+          className={`rounded-xl border p-4 backdrop-blur flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+            qualityGate.passed
+              ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-200'
+              : 'border-amber-500/40 bg-amber-950/20 text-amber-200'
+          }`}
+        >
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
+              {qualityGate.passed ? (
+                <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-amber-400" />
+              )}
+              <span>
+                Quality Gate (Evidence Grounding &ge; {(qualityGate.grounding_threshold * 100).toFixed(0)}%):{' '}
+                {qualityGate.passed ? 'ĐẠT CHUẨN XUẤT BẢN' : 'CẦN RÀ SOÁT HITL'}
+              </span>
+            </div>
+            {qualityGate.warnings && qualityGate.warnings.length > 0 && (
+              <ul className="text-xs space-y-0.5 opacity-90 list-disc pl-5">
+                {qualityGate.warnings.map((w, idx) => (
+                  <li key={idx}>{w}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="rounded-lg bg-slate-950/70 border border-slate-800 px-3 py-1.5 text-center">
+              <div className="text-[10px] text-slate-400">Grounding Precision</div>
+              <div className="text-sm font-bold text-white">
+                {(qualityGate.grounding_precision * 100).toFixed(0)}%
+              </div>
+            </div>
+            <div className="rounded-lg bg-slate-950/70 border border-slate-800 px-3 py-1.5 text-center">
+              <div className="text-[10px] text-slate-400">Included / Min</div>
+              <div className="text-sm font-bold text-white">
+                {qualityGate.included_count} / {qualityGate.min_papers}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search & Ingestion Box */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 backdrop-blur space-y-3">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -54,7 +119,6 @@ export default function ScreeningBoardTab({
             </button>
           </div>
 
-          {/* Filter Chips */}
           <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-slate-400">
             <div className="flex items-center gap-1.5">
               <span>Số bài nạp:</span>
@@ -103,7 +167,6 @@ export default function ScreeningBoardTab({
           </div>
         </form>
 
-        {/* Search History Chips */}
         {searchHistory && searchHistory.length > 0 && (
           <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-[11px]">
             <span className="flex items-center gap-1 text-slate-400">
@@ -124,12 +187,12 @@ export default function ScreeningBoardTab({
         )}
       </div>
 
-      {/* Action Toolbar for Active Learning, LLM Batch & 2-Way Snowballing */}
+      {/* Action Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/60 p-4">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 font-medium">Quy trình Active Learning:</span>
+          <span className="text-xs text-slate-400 font-medium">Quy trình Phễu Sàng lọc:</span>
           <span className="text-xs text-slate-300">
-            Chấm &ge; 6 bài mẫu (Included &amp; Excluded) rồi kích hoạt huấn luyện cục bộ hoặc Snowball từ bài Included.
+            Active Learning lọc nhanh &rarr; Phản biện mù đôi (Inclusive vs Strict) cho bài phân vân.
           </span>
         </div>
 
@@ -137,29 +200,38 @@ export default function ScreeningBoardTab({
           <button
             onClick={onRunActiveLearning}
             disabled={isRunningAL}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-600/20 px-3.5 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/40 bg-indigo-600/20 px-3 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-600/30 transition disabled:opacity-50"
           >
             <Zap className="h-4 w-4" />
-            {isRunningAL ? 'Đang train ML...' : 'Huấn luyện Active Learning'}
+            {isRunningAL ? 'Đang train ML...' : 'Active Learning'}
+          </button>
+
+          <button
+            onClick={onRunDualPeer}
+            disabled={isRunningDualPeer}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-600/20 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-600/30 transition disabled:opacity-50"
+            title="Chạy song song Inclusive Reviewer vs Strict Reviewer + Trọng tài + Kiểm chứng trích dẫn"
+          >
+            <Scale className="h-4 w-4" />
+            {isRunningDualPeer ? 'Đang phản biện...' : 'Phản biện Mù đôi (Dual-Peer)'}
           </button>
 
           <button
             onClick={onAutoLabelUncertain}
             disabled={isRunningLLM}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-600/20 px-3.5 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-600/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/30 transition disabled:opacity-50"
           >
             <Bot className="h-4 w-4" />
-            {isRunningLLM ? 'LLM đang đọc...' : 'Nhờ AI chấm 10 bài phân vân'}
+            {isRunningLLM ? 'LLM đang đọc...' : 'AI Batch (10 bài)'}
           </button>
 
           <button
             onClick={() => onSnowball()}
             disabled={isSnowballing || includedSeedCount === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-600/20 px-3.5 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-600/30 transition disabled:opacity-50"
-            title="Mở rộng trích dẫn Backward & Forward từ các bài Included"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-600/20 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-600/30 transition disabled:opacity-50"
           >
             <GitBranch className="h-4 w-4" />
-            {isSnowballing ? 'Đang Snowball...' : `Snowball 2 Chiều (${includedSeedCount} seeds)`}
+            {isSnowballing ? 'Đang Snowball...' : `Snowball (${includedSeedCount} seeds)`}
           </button>
         </div>
       </div>
@@ -182,9 +254,12 @@ export default function ScreeningBoardTab({
               const prob = paper.al_inclusion_prob
               const unc = paper.al_uncertainty_score
               const isUncertain = unc && unc >= 0.7
+              const rationale = paper.screening_rationale || {}
+              const hasOpinions = Array.isArray(rationale.opinions) && rationale.opinions.length > 0
+              const gScore = rationale.grounding_score
 
               return (
-                <div key={paper.id} className="p-5 hover:bg-slate-850/40 transition">
+                <div key={paper.id} className="p-5 hover:bg-slate-850/40 transition space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div className="space-y-2 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -221,6 +296,24 @@ export default function ScreeningBoardTab({
                         >
                           {paper.screening_status.toUpperCase()} ({paper.screening_source})
                         </span>
+
+                        {gScore !== undefined && gScore !== null && (
+                          <span
+                            className={`rounded px-2 py-0.5 text-[10px] font-bold border ${
+                              gScore >= 0.8
+                                ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                                : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                            }`}
+                          >
+                            Grounding: {(gScore * 100).toFixed(0)}%
+                          </span>
+                        )}
+
+                        {rationale.hitl_approved && (
+                          <span className="rounded bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-semibold text-indigo-300">
+                            HITL Verified
+                          </span>
+                        )}
                       </div>
 
                       <h4 className="text-base font-semibold text-white leading-snug">
@@ -238,26 +331,42 @@ export default function ScreeningBoardTab({
                         {paper.abstract || 'Không có đoạn tóm tắt khả dụng.'}
                       </p>
 
-                      {prob !== null && prob !== undefined && (
-                        <div className="flex items-center gap-4 pt-1 text-[11px] text-slate-400">
-                          <div>
-                            Xác suất phù hợp (p):{' '}
-                            <span className="font-semibold text-indigo-300">
-                              {(prob * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                          <div>
-                            Độ bất định (U):{' '}
-                            <span
-                              className={`font-semibold ${
-                                isUncertain ? 'text-amber-400' : 'text-slate-400'
-                              }`}
-                            >
-                              {unc?.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-4 pt-1 text-[11px] text-slate-400">
+                        {prob !== null && prob !== undefined && (
+                          <>
+                            <div>
+                              Xác suất phù hợp (p):{' '}
+                              <span className="font-semibold text-indigo-300">
+                                {(prob * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div>
+                              Độ bất định (U):{' '}
+                              <span
+                                className={`font-semibold ${
+                                  isUncertain ? 'text-amber-400' : 'text-slate-400'
+                                }`}
+                              >
+                                {unc?.toFixed(2)}
+                              </span>
+                            </div>
+                          </>
+                        )}
+
+                        {(hasOpinions || rationale.reason) && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedAuditId(expandedAuditId === paper.id ? null : paper.id)
+                            }
+                            className="text-indigo-400 hover:text-indigo-300 underline"
+                          >
+                            {expandedAuditId === paper.id
+                              ? 'Ẩn chi tiết Phản biện'
+                              : 'Xem lập luận AI & Bằng chứng'}
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex sm:flex-col items-center gap-2 shrink-0">
@@ -286,6 +395,53 @@ export default function ScreeningBoardTab({
                       </button>
                     </div>
                   </div>
+
+                  {/* Expandable Dual-Peer Audit & HITL Verification Drawer */}
+                  {expandedAuditId === paper.id && (
+                    <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-4 space-y-3 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold text-indigo-300">
+                          Giải trình Sàng lọc &amp; Bằng chứng Xác minh
+                        </span>
+                        {!rationale.hitl_approved && (
+                          <button
+                            onClick={() => onHitlApprove(paper.id)}
+                            className="rounded border border-emerald-500/40 bg-emerald-600/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-600/30 transition"
+                          >
+                            Xác nhận HITL (Approve Verdict)
+                          </button>
+                        )}
+                      </div>
+                      {rationale.reason && (
+                        <p className="text-slate-300 leading-relaxed">{rationale.reason}</p>
+                      )}
+                      {rationale.evidence_quote && (
+                        <div className="rounded border-l-2 border-amber-500/60 bg-amber-950/20 p-2.5 italic text-amber-200/90">
+                          &ldquo;{rationale.evidence_quote}&rdquo;
+                        </div>
+                      )}
+                      {hasOpinions && (
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 pt-1">
+                          {rationale.opinions.map((op, idx) => (
+                            <div
+                              key={idx}
+                              className="rounded border border-slate-800 bg-slate-900/70 p-2.5 space-y-1"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold uppercase text-[10px] text-cyan-300">
+                                  {op.reviewer_role}
+                                </span>
+                                <span className="text-[10px] text-slate-300">
+                                  {op.decision.toUpperCase()} ({(op.confidence * 100).toFixed(0)}%)
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-300">{op.reason}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
