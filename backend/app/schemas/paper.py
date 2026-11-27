@@ -48,8 +48,34 @@ class PaperOut(BaseModel):
     screening_source: ScreeningSource
     al_inclusion_prob: float | None
     al_uncertainty_score: float | None
+    screening_rationale: dict | None = Field(default_factory=dict)
 
     model_config = {"from_attributes": True}
+
+
+class QualityGateStatus(BaseModel):
+    passed: bool
+    grounding_precision: float
+    grounding_threshold: float = 0.80
+    included_count: int
+    min_papers: int = 3
+    requires_hitl_review: bool
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DualPeerScreenResponse(BaseModel):
+    processed_count: int
+    included_count: int
+    excluded_count: int
+    uncertain_count: int
+    disagreement_count: int
+    avg_grounding_score: float
+    quality_gate: QualityGateStatus
+
+
+class HITLOverrideRequest(BaseModel):
+    action: str = Field(description="approve | include | exclude")
+    note: str = ""
 
 
 class SnowballResponse(BaseModel):

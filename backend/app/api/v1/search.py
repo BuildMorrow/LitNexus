@@ -81,6 +81,7 @@ async def _persist_works_dedup(
             seed_distance=work.seed_distance,
             screening_status=ScreeningStatus.unscreened,
             screening_source=ScreeningSource.none,
+            screening_rationale={},
         )
         db.add(paper)
         added.append(paper)
