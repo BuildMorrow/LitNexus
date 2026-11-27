@@ -23,6 +23,7 @@ class LLMRouter:
     def __init__(self) -> None:
         settings = get_settings()
         self.models = [settings.LLM_PRIMARY_MODEL, *settings.fallback_models_list]
+        self.embedding_model = settings.LLM_EMBEDDING_MODEL
         self.temperature = settings.LLM_TEMPERATURE
         self._sync_provider_env(settings)
 
@@ -100,6 +101,20 @@ class LLMRouter:
                 last_error = exc
 
         raise LLMGatewayError(f"All LLM models failed: {last_error}")
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]] | None:
+        """
+        Generate 1536-dim dense embeddings through LiteLLM.
+        Returns None when no embedding key/provider is available so lexical retrieval still succeeds.
+        """
+        if not texts:
+            return []
+        try:
+            resp = await litellm.aembedding(model=self.embedding_model, input=texts)
+            return [item["embedding"] for item in resp.data]
+        except Exception as exc:
+            logger.warning("Embedding generation skipped/failed (%s): %s", self.embedding_model, exc)
+            return None
 
 
 llm_router = LLMRouter()

@@ -32,6 +32,7 @@ pgdata/
 *.sqlite3
 backend/data/*.csv
 !backend/data/.gitkeep
+backend/uploads/
 
 # IDE / OS
 .vscode/

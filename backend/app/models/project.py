@@ -44,3 +44,6 @@ class ResearchProject(Base):
     search_queries: Mapped[list["SearchQuery"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    workspace_messages: Mapped[list["WorkspaceMessage"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )

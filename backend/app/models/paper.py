@@ -44,6 +44,7 @@ class Paper(Base):
     abstract: Mapped[str | None] = mapped_column(Text)
     citation_count: Mapped[int] = mapped_column(Integer, default=0)
     pdf_url: Mapped[str | None] = mapped_column(Text)
+    local_pdf_path: Mapped[str | None] = mapped_column(Text)
 
     # Journal Verification
     scopus_quartile: Mapped[str | None] = mapped_column(String(16))  # Q1, Q2, Q3, Q4

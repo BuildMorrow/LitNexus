@@ -6,6 +6,7 @@ from app.models.project import ResearchProject
 from app.models.search_query import SearchQuery
 from app.models.sjr import SJRJournal
 from app.models.user import User
+from app.models.workspace import WorkspaceMessage
 
 __all__ = [
     "User",
@@ -23,4 +24,5 @@ __all__ = [
     "RiskLevel",
     "SearchQuery",
     "SJRJournal",
+    "WorkspaceMessage",
 ]

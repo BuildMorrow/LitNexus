@@ -1,6 +1,7 @@
 import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +23,7 @@ from app.services.academic_search import (
     run_two_way_snowball,
     search_openalex,
 )
+from app.services.llm_router import llm_router
 from app.services.pdf_processor import pdf_processor
 from app.services.sjr_service import sjr_service
 
@@ -204,16 +206,58 @@ async def snowball_papers(
     )
 
 
+async def _index_pdf_bytes_for_paper(
+    db: AsyncSession,
+    project: ResearchProject,
+    paper: Paper,
+    pdf_bytes: bytes,
+) -> dict:
+    """Validate, persist PDF locally, extract pinned chunks, embed, and store into pgvector."""
+    saved_path = pdf_processor.validate_and_save_pdf(
+        pdf_bytes,
+        owner_id=str(project.owner_id),
+        project_id=str(project.id),
+        paper_id=str(paper.id),
+    )
+    pages = pdf_processor.extract_pages_from_bytes(pdf_bytes)
+    chunks = pdf_processor.chunk_extracted_pages(pages)
+    embeddings = await llm_router.embed_texts([c.content for c in chunks]) if chunks else None
+
+    existing_chunks = await db.execute(select(PaperChunk).where(PaperChunk.paper_id == paper.id))
+    for ec in existing_chunks.scalars().all():
+        await db.delete(ec)
+
+    for idx, ch in enumerate(chunks):
+        emb = embeddings[idx] if embeddings and idx < len(embeddings) else None
+        db.add(
+            PaperChunk(
+                paper_id=paper.id,
+                chunk_index=ch.chunk_index,
+                page_number=ch.page_number,
+                section_title=ch.section_title,
+                content=ch.content,
+                embedding=emb,
+            )
+        )
+
+    paper.local_pdf_path = str(saved_path)
+    await db.commit()
+    return {
+        "status": "success",
+        "paper_id": str(paper.id),
+        "chunks_indexed": len(chunks),
+        "pages_processed": max([c.page_number for c in chunks], default=0),
+        "embeddings_stored": bool(embeddings),
+    }
+
+
 @router.post("/papers/{paper_id}/ingest-pdf", status_code=status.HTTP_200_OK)
 async def ingest_paper_pdf(
     paper_id: uuid.UUID,
     project: ResearchProject = Depends(get_owned_project),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Download and parse full-text PDF for an included paper.
-    Chunks text with page pinning and section detection into paper_chunks table.
-    """
+    """Download, store, chunk, and embed Open Access PDF into paper_chunks."""
     res = await db.execute(
         select(Paper).where(Paper.id == paper_id, Paper.project_id == project.id)
     )
@@ -228,31 +272,63 @@ async def ingest_paper_pdf(
         )
 
     try:
-        chunks = await pdf_processor.download_and_process_pdf(paper.pdf_url)
+        pdf_bytes = await pdf_processor.download_pdf_bytes(paper.pdf_url)
+        return await _index_pdf_bytes_for_paper(db, project, paper, pdf_bytes)
     except Exception as exc:
         raise HTTPException(
             status_code=502,
             detail=f"Failed to fetch or parse PDF from {paper.pdf_url}: {exc}",
         ) from exc
 
-    existing_chunks = await db.execute(select(PaperChunk).where(PaperChunk.paper_id == paper.id))
-    for ec in existing_chunks.scalars().all():
-        await db.delete(ec)
 
-    for ch in chunks:
-        db_chunk = PaperChunk(
-            paper_id=paper.id,
-            chunk_index=ch.chunk_index,
-            page_number=ch.page_number,
-            section_title=ch.section_title,
-            content=ch.content,
+@router.post("/papers/{paper_id}/upload-pdf", status_code=status.HTTP_200_OK)
+async def upload_paper_pdf(
+    paper_id: uuid.UUID,
+    file: UploadFile = File(...),
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Directly upload a local PDF file for a paper, index chunks, and persist embeddings."""
+    res = await db.execute(
+        select(Paper).where(Paper.id == paper_id, Paper.project_id == project.id)
+    )
+    paper = res.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found in project")
+
+    pdf_bytes = await file.read()
+    try:
+        return await _index_pdf_bytes_for_paper(db, project, paper, pdf_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"PDF indexing failed: {exc}") from exc
+
+
+@router.get("/papers/{paper_id}/pdf-highlight")
+async def get_paper_pdf_highlight(
+    paper_id: uuid.UUID,
+    page: int = Query(default=1, ge=1),
+    quote: str = Query(default="", max_length=1500),
+    project: ResearchProject = Depends(get_owned_project),
+    db: AsyncSession = Depends(get_db),
+):
+    """Locate bounding boxes for an evidence quote on a PDF page and return PNG preview."""
+    res = await db.execute(
+        select(Paper).where(Paper.id == paper_id, Paper.project_id == project.id)
+    )
+    paper = res.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found in project")
+    if not paper.local_pdf_path:
+        raise HTTPException(
+            status_code=404,
+            detail="No local PDF indexed for this paper yet. Upload or ingest the PDF first.",
         )
-        db.add(db_chunk)
 
-    await db.commit()
-    return {
-        "status": "success",
-        "paper_id": str(paper.id),
-        "chunks_indexed": len(chunks),
-        "pages_processed": max([c.page_number for c in chunks], default=0),
-    }
+    return pdf_processor.get_evidence_highlight_data(
+        Path(paper.local_pdf_path),
+        page_num=page,
+        quote_text=quote,
+        render_image=True,
+    )
